@@ -24,12 +24,12 @@ prompt() {
 
 # --- 1. Node ---
 if ! command -v node >/dev/null 2>&1; then
-  echo "✗ Node niet gevonden. Installeer Node 20+ (https://nodejs.org/)."
+  echo "✗ Node niet gevonden. Installeer Node 20+ (https://nodejs.org/ of 'brew install node')."
   exit 1
 fi
 NODE_MAJOR=$(node -p "process.versions.node.split('.')[0]")
 if [ "$NODE_MAJOR" -lt 20 ]; then
-  echo "✗ Node 20+ vereist (huidige: $(node -v))"
+  echo "✗ Node 20+ vereist (huidige: $(node -v)). Update: 'brew upgrade node' of via nvm."
   exit 1
 fi
 echo "✓ Node $(node -v)"
