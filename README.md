@@ -54,22 +54,30 @@ Per opname-pagina:
 - Notes / highlights (uit Plaud's `note:` data)
 - Transcript met timestamps per zin (uit `source:` data)
 
-## Quick install
+## Quick install (one-liner)
 
 ```bash
-git clone https://github.com/kvdaatselaar/plaud-integration.git
-cd plaud-integration
-
-# 1. Eerst Azure app-registratie aanmaken — zie sectie hieronder.
-# 2. Daarna alles in één klap:
-./install.sh
+curl -fsSL https://raw.githubusercontent.com/kvdaatselaar/plaud-integration/main/bootstrap.sh | bash
 ```
 
-Het script: `npm install` → `.env` invullen → Plaud-login (browser) → MS-login
-(device-code) → notebook aanmaken → launchd activeren. Idempotent: gewoon
-opnieuw draaien als er iets misging of je later iets wilt toevoegen.
+Dit kloont de repo naar een door jou gekozen pad (default `~/plaud-integration`)
+en draait dan `install.sh` — die loopt door:
 
-Uninstall: `./uninstall.sh` (haalt launchd weg + optioneel state).
+1. `npm install`
+2. `.env` invullen (vraagt om je Azure Client ID; zie [Azure / Entra app-registratie](#2-azure--entra-app-registratie) hieronder als je er nog geen hebt)
+3. Plaud-login via browser (Google SSO)
+4. Microsoft-login via device-code
+5. OneNote notebook resolven/aanmaken
+6. launchd activeren (dagelijks 07:00)
+
+Idempotent — gewoon opnieuw draaien als er iets misging of je later iets wilt
+aanvullen.
+
+Uninstall: `./uninstall.sh` (launchd unload + optioneel state cleanup).
+
+> **Azure app-registratie eerst aanmaken** — zonder Client ID kan het script
+> de `.env` niet afmaken. Volg [stap 2 hieronder](#2-azure--entra-app-registratie).
+> Heb je 'm al? Dan loopt de bootstrap door zonder te wachten.
 
 ## Eenmalige setup (als je `install.sh` niet wilt gebruiken)
 
