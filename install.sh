@@ -117,11 +117,27 @@ fi
 # --- 9. Wrapper executable ---
 chmod +x scripts/run-sync.sh
 
+# --- 10. First sync + open notebook ---
+echo ""
+ANS=$(prompt "Eerste sync nu draaien (kan minuten duren bij veel opnames)? [Y/n]: ")
+if [ -z "$ANS" ] || [ "$ANS" = "y" ] || [ "$ANS" = "Y" ]; then
+  echo "→ npm run sync"
+  if npm run --silent sync; then
+    echo ""
+    OPEN=$(prompt "OneNote-desktop openen op je notebook? [Y/n]: ")
+    if [ -z "$OPEN" ] || [ "$OPEN" = "y" ] || [ "$OPEN" = "Y" ]; then
+      npm run --silent onenote:open || true
+    fi
+  else
+    echo "⚠ Eerste sync faalde. Check de output hierboven, los op, en run: npm run sync"
+  fi
+fi
+
 echo ""
 echo "==============================="
 echo "Setup compleet."
 echo ""
-echo "Eerste sync:        npm run sync"
+echo "Sync handmatig:     npm run sync"
 echo "Notebook openen:    npm run onenote:open"
-echo "Logs:               $STATE_DIR/sync.log"
+echo "Logs (launchd):     $STATE_DIR/sync.log"
 echo "==============================="
