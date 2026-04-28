@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Template — install.sh substitueert __PROJECT_DIR__ en __HOME__ en kopieert
+  het resultaat naar ~/Library/LaunchAgents/local.plaud-integration.plist
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>local.plaud-integration</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-lc</string>
+    <string>__PROJECT_DIR__/scripts/run-sync.sh</string>
+  </array>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>7</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>__HOME__/.plaud-integration/sync.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>__HOME__/.plaud-integration/sync.err.log</string>
+</dict>
+</plist>

@@ -1,0 +1,37 @@
+{
+  "name": "plaud-integration",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Daily sync of Plaud recordings into OneNote with weekly grouping and calendar-based title matching",
+  "license": "MIT",
+  "author": "Kobbe van Daatselaar",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kvdaatselaar/plaud-integration.git"
+  },
+  "homepage": "https://github.com/kvdaatselaar/plaud-integration#readme",
+  "bugs": "https://github.com/kvdaatselaar/plaud-integration/issues",
+  "scripts": {
+    "sync": "tsx src/index.ts",
+    "plaud:login": "tsx scripts/plaud-login.ts",
+    "plaud:browser-login": "tsx scripts/plaud-browser-login.ts",
+    "graph:login": "tsx scripts/graph-login.ts",
+    "graph:setup-notebook": "tsx scripts/setup-notebook.ts",
+    "onenote:open": "tsx scripts/open-notebook.ts",
+    "onenote:retitle": "tsx scripts/retitle.ts",
+    "plaud:debug": "tsx scripts/plaud-debug.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@azure/msal-node": "^2.16.2",
+    "dotenv": "^16.4.7",
+    "marked": "^18.0.1",
+    "playwright": "^1.49.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
