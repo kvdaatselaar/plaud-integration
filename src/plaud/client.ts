@@ -32,6 +32,11 @@ export class PlaudClient {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
+        // Cloudflare in front of api-*.plaud.ai 403s requests without a
+        // browser-ish UA / Origin. Match what the web app sends.
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
+        'Origin': 'https://app.plaud.ai',
+        'Referer': 'https://app.plaud.ai/',
         ...options?.headers,
       },
     });
