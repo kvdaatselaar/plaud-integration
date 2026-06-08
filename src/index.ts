@@ -7,6 +7,7 @@ import { OneNote } from './onenote.js';
 import { Calendar, matchEvent } from './calendar.js';
 import type { CalendarEvent } from './calendar.js';
 import { buildPageHtml, buildOverviewPageHtml, buildOverviewBody } from './html.js';
+import { writeTranscript } from './transcripts.js';
 import { isoWeekInfo } from './week.js';
 
 function log(msg: string): void {
@@ -129,6 +130,10 @@ async function main(): Promise<void> {
       await onenote.replacePageBody(weekState.overviewPageId, overviewBody);
 
       state.markSynced(rec.id);
+
+      const transcriptPath = writeTranscript(week.label, title, rec, detail);
+      if (transcriptPath) log(`   📄 ${transcriptPath}`);
+
       ok++;
       log(`   ✓ ${title}`);
     } catch (err) {

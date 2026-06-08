@@ -16,13 +16,17 @@ export const config = {
   onenote: {
     notebookName: process.env.NOTEBOOK_NAME ?? 'Plaud Notes',
   },
+  transcripts: {
+    enabled: (process.env.TRANSCRIPTS ?? 'on').toLowerCase() !== 'off',
+    dir: process.env.TRANSCRIPTS_DIR ?? path.join(os.homedir(), 'Documents', 'PlaudTranscripts'),
+  },
   paths: {
     dir: path.join(os.homedir(), '.plaud-integration'),
     state: path.join(os.homedir(), '.plaud-integration', 'state.json'),
     msalCache: path.join(os.homedir(), '.plaud-integration', 'msal-cache.json'),
   },
   graph: {
-    scopes: ['Notes.ReadWrite', 'offline_access', 'User.Read'],
+    scopes: ['Notes.ReadWrite', 'Calendars.Read', 'offline_access', 'User.Read'],
     authority(tenantId: string) {
       return `https://login.microsoftonline.com/${tenantId}`;
     },

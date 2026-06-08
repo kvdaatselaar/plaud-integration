@@ -54,6 +54,29 @@ Per opname-pagina:
 - Notes / highlights (uit Plaud's `note:` data)
 - Transcript met timestamps per zin (uit `source:` data)
 
+## Lokale transcript-dump
+
+Naast OneNote schrijft de sync standaard ook een markdown-file per opname naar
+`~/Documents/PlaudTranscripts/<weekLabel>/<title>.md`. Zelfde week-indeling als
+OneNote. Bevat YAML frontmatter (datum, duur, Plaud-ID) + summary + notes +
+transcript — ideaal voor grep, Obsidian, of git-versionering.
+
+Configureerbaar via `.env`:
+
+```
+# Aangepaste locatie
+TRANSCRIPTS_DIR=/Users/jouw-naam/Documents/PlaudTranscripts
+
+# Uitzetten
+TRANSCRIPTS=off
+```
+
+Bestaande (al-gesynchroniseerde) opnames in één keer naar disk schrijven:
+
+```bash
+npm run transcripts:dump
+```
+
 ## Quick install (one-liner)
 
 ```bash
@@ -255,6 +278,7 @@ src/
 ├── graph-auth.ts          # MSAL Node met file-backed token cache
 ├── onenote.ts             # Graph OneNote client (notebooks, sections, pages, PATCH)
 ├── calendar.ts            # Graph Calendar client + event-matching voor titels
+├── transcripts.ts         # lokale markdown-dump per opname
 └── plaud/                 # vendored Plaud client (zie plaud/VENDOR.md)
 scripts/
 ├── plaud-login.ts          # Plaud email/password (optie A)
@@ -264,6 +288,7 @@ scripts/
 ├── setup-notebook.ts       # notebook pre-aanmaken (optioneel)
 ├── open-notebook.ts        # OneNote-desktop openen op de notebook
 ├── retitle.ts              # bestaande page-titels bijwerken obv agenda
+├── dump-transcripts.ts     # backfill van markdown-files voor al gesynchroniseerde opnames
 └── run-sync.sh             # launchd wrapper (laadt nvm)
 launchd/
 └── local.plaud-integration.plist.template
@@ -284,4 +309,5 @@ uninstall.sh                   # launchd unload + state cleanup
 | `npm run graph:setup-notebook` | Notebook pre-aanmaken |
 | `npm run onenote:open` | Notebook openen in OneNote-desktop |
 | `npm run onenote:retitle` | Bestaande page-titels bijwerken obv Outlook-agenda |
+| `npm run transcripts:dump` | Backfill: markdown-files voor al gesynchroniseerde opnames |
 | `npm run typecheck` | TypeScript check |
