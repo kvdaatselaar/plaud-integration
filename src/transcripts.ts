@@ -42,28 +42,13 @@ export function buildTranscriptMarkdown(
   parts.push(`- **Duur:** ${durationMin} min`);
   parts.push('');
 
-  if (detail.summary) {
-    parts.push('---');
-    parts.push('');
-    parts.push(detail.summary.trim());
-    parts.push('');
-  }
-
-  if (detail.notes) {
-    parts.push('---');
-    parts.push('');
-    parts.push('## Notes / highlights');
-    parts.push('');
-    parts.push(detail.notes.trim());
-    parts.push('');
-  }
-
-  if (detail.transcript) {
-    parts.push('---');
-    parts.push('');
+  if (detail.transcript?.trim()) {
     parts.push('## Transcript');
     parts.push('');
     parts.push(detail.transcript.trim());
+    parts.push('');
+  } else {
+    parts.push('_(Geen transcript beschikbaar)_');
     parts.push('');
   }
 
