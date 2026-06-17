@@ -9,3 +9,10 @@ dist/
 .claude/settings.local.json
 .vscode/
 .idea/
+
+# Local-only export dirs (transcripts/audio) when users set TRANSCRIPTS_DIR
+# or AUDIO_DIR to a path inside the checkout. Defaults live in ~/Documents/.
+TranscriptArchive/
+AudioArchive/
+transcripts/
+audio/
