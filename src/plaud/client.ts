@@ -1,3 +1,4 @@
+import * as zlib from 'node:zlib';
 import { PlaudAuth } from './auth.js';
 import { BASE_URLS } from './types.js';
 import type { PlaudRecording, PlaudRecordingDetail, PlaudUserInfo } from './types.js';
@@ -9,6 +10,48 @@ function formatTs(ms: number): string {
   const s = totalSec % 60;
   if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+interface TransSegment {
+  content?: string;
+  start_time?: number;
+  speaker?: string;
+  original_speaker?: string;
+}
+
+/**
+ * Fetch the verbatim transcript from a Plaud presigned S3 URL.
+ * URL points to a gzip'd JSON keyed by sequence index (or array) with
+ * { content, start_time, speaker } entries. Returns the formatted
+ * "[ts] Speaker: content" text, or null on any failure (the caller
+ * should fall back to whatever it has).
+ */
+async function fetchTranscriptFromS3(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    let raw: string;
+    try {
+      raw = zlib.gunzipSync(buf).toString('utf-8');
+    } catch {
+      raw = buf.toString('utf-8');
+    }
+    const data: any = JSON.parse(raw);
+    const items: TransSegment[] = Array.isArray(data) ? data : Object.values(data);
+    const lines = items
+      .filter(i => typeof i?.content === 'string' && i.content.trim().length > 0)
+      .map(i => {
+        const ts = formatTs(i.start_time ?? 0);
+        const rawSpeaker = i.speaker ?? i.original_speaker;
+        const speaker = rawSpeaker == null ? '' : String(rawSpeaker).trim();
+        const prefix = speaker ? `${speaker}: ` : '';
+        return `[${ts}] ${prefix}${i.content!.trim()}`;
+      });
+    return lines.length > 0 ? lines.join('\n\n') : null;
+  } catch {
+    return null;
+  }
 }
 
 export class PlaudClient {
@@ -66,7 +109,16 @@ export class PlaudClient {
     const data = await this.request(`/file/detail/${id}`);
     const raw = data.data ?? data;
 
+    // Prefer the verbatim transcript from the presigned S3 URL exposed via
+    // content_list[data_type=transaction]. Fall back to the sentence-level
+    // pre_download_content_list/source: extract if that fetch fails.
     let transcript = '';
+    const transaction = (raw.content_list ?? []).find((c: any) => c?.data_type === 'transaction');
+    if (transaction?.data_link) {
+      const real = await fetchTranscriptFromS3(transaction.data_link);
+      if (real) transcript = real;
+    }
+
     let summary: string | undefined;
     let notes: string | undefined;
 
@@ -83,7 +135,8 @@ export class PlaudClient {
         } catch {
           summary = content;
         }
-      } else if (dataId.startsWith('source:')) {
+      } else if (dataId.startsWith('source:') && !transcript) {
+        // Fallback only — verbatim transcript already came from S3 if available.
         try {
           const marks: any[] = JSON.parse(content);
           transcript = marks
