@@ -69,18 +69,24 @@ export function matchEvent(
   const TOLERANCE_MS = 30 * 60_000;
 
   const scored = events
-    .filter(e => !e.isAllDay && !e.isCancelled)
+    .filter(e => !e.isCancelled)
     .filter(e => e.responseStatus?.response !== 'declined')
     .filter(e => hasOtherAttendees(e))
     .map(e => {
       const evStart = Date.parse(e.start.dateTime.endsWith('Z') ? e.start.dateTime : `${e.start.dateTime}Z`);
       const evEnd = Date.parse(e.end.dateTime.endsWith('Z') ? e.end.dateTime : `${e.end.dateTime}Z`);
+      const evDur = Math.max(1, evEnd - evStart);
       const overlap = Math.max(0, Math.min(recEndMs, evEnd) - Math.max(recStartMs, evStart));
+      const coverage = overlap / Math.max(1, recDurationMs); // share of recording covered by event
+      const fit = Math.min(recDurationMs, evDur) / Math.max(recDurationMs, evDur); // duration similarity
       const startDelta = Math.abs(recStartMs - evStart);
-      return { event: e, overlap, startDelta };
+      // Composite: coverage matters most; duration-fit breaks the
+      // "short meeting at the start wins over the all-day event" tie.
+      const score = coverage * (0.5 + 0.5 * fit);
+      return { event: e, overlap, coverage, fit, startDelta, score };
     })
-    .filter(c => c.overlap > 0 || c.startDelta <= TOLERANCE_MS)
-    .sort((a, b) => (b.overlap - a.overlap) || (a.startDelta - b.startDelta));
+    .filter(c => c.coverage > 0 || c.startDelta <= TOLERANCE_MS)
+    .sort((a, b) => (b.score - a.score) || (a.startDelta - b.startDelta));
 
   return scored[0]?.event ?? null;
 }
