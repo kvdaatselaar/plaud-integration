@@ -21,6 +21,7 @@
     "onenote:open": "tsx scripts/open-notebook.ts",
     "onenote:retitle": "tsx scripts/retitle.ts",
     "transcripts:dump": "tsx scripts/dump-transcripts.ts",
+    "audio:download": "tsx scripts/download-audio.ts",
     "plaud:debug": "tsx scripts/plaud-debug.ts",
     "typecheck": "tsc --noEmit"
   },
