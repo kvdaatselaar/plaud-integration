@@ -77,6 +77,28 @@ Bestaande (al-gesynchroniseerde) opnames in één keer naar disk schrijven:
 npm run transcripts:dump
 ```
 
+## Audio-download
+
+Losse MP3-export naast OneNote en transcript-dump. Streamt via Plaud's
+presigned download-URL, dus geen memory-blowup voor lange opnames.
+
+```bash
+npm run audio:download
+```
+
+Doel: `~/Documents/PlaudAudio/<weekLabel>/<title>.mp3`. Idempotent — bestaande
+files worden overgeslagen.
+
+Config via `.env`:
+
+```
+# Aangepaste locatie
+AUDIO_DIR=/Users/jouw-naam/Documents/PlaudAudio
+
+# Opus i.p.v. MP3 (kleinere files, niet overal afspeelbaar)
+AUDIO_FORMAT=opus
+```
+
 ## Quick install (one-liner)
 
 ```bash
@@ -289,6 +311,7 @@ scripts/
 ├── open-notebook.ts        # OneNote-desktop openen op de notebook
 ├── retitle.ts              # bestaande page-titels bijwerken obv agenda
 ├── dump-transcripts.ts     # backfill van markdown-files voor al gesynchroniseerde opnames
+├── download-audio.ts       # MP3-export naar lokale map (idempotent)
 └── run-sync.sh             # launchd wrapper (laadt nvm)
 launchd/
 └── local.plaud-integration.plist.template
@@ -310,4 +333,5 @@ uninstall.sh                   # launchd unload + state cleanup
 | `npm run onenote:open` | Notebook openen in OneNote-desktop |
 | `npm run onenote:retitle` | Bestaande page-titels bijwerken obv Outlook-agenda |
 | `npm run transcripts:dump` | Backfill: markdown-files voor al gesynchroniseerde opnames |
+| `npm run audio:download` | MP3-export naar AUDIO_DIR (skip-if-exists) |
 | `npm run typecheck` | TypeScript check |
