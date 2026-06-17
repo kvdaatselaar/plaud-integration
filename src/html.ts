@@ -27,6 +27,12 @@ function transcriptToHtml(transcript: string): string {
     .map(line => line.trim())
     .filter(Boolean)
     .map(line => {
+      // [hh:mm:ss] Speaker N: content
+      const sm = line.match(/^\[([^\]]+)\]\s+([^:]+):\s+(.*)$/s);
+      if (sm) {
+        return `<p><span style="color:#888">[${escape(sm[1])}]</span> <strong>${escape(sm[2])}:</strong> ${escape(sm[3])}</p>`;
+      }
+      // [hh:mm:ss] content (no speaker — old format)
       const m = line.match(/^\[([^\]]+)\]\s*(.*)$/s);
       if (m) {
         return `<p><span style="color:#888">[${escape(m[1])}]</span> ${escape(m[2])}</p>`;
