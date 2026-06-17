@@ -1,4 +1,8 @@
 import * as zlib from 'node:zlib';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { PlaudAuth } from './auth.js';
 import { BASE_URLS } from './types.js';
 import type { PlaudRecording, PlaudRecordingDetail, PlaudUserInfo } from './types.js';
@@ -168,6 +172,31 @@ export class PlaudClient {
       summary,
       notes,
     } as PlaudRecordingDetail;
+  }
+
+  /**
+   * Ask Plaud for a short-lived presigned URL to the audio file.
+   * is_opus=false → MP3; true → opus.
+   */
+  async getDownloadUrl(id: string, opus = false): Promise<string> {
+    const data = await this.request(`/file/temp-url/${id}?is_opus=${opus}`);
+    const url = data?.url ?? data?.data?.url ?? data?.data ?? data?.temp_url;
+    if (!url || typeof url !== 'string') {
+      throw new Error(`No URL in temp-url response: ${JSON.stringify(data).slice(0, 200)}`);
+    }
+    return url;
+  }
+
+  /**
+   * Stream the audio file straight to disk. Creates parent dirs.
+   */
+  async downloadAudioToFile(id: string, destPath: string, opus = false): Promise<void> {
+    const url = await this.getDownloadUrl(id, opus);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Audio download failed: ${res.status} ${res.statusText}`);
+    if (!res.body) throw new Error('Empty body');
+    fs.mkdirSync(path.dirname(destPath), { recursive: true });
+    await pipeline(Readable.fromWeb(res.body as any), fs.createWriteStream(destPath));
   }
 
   async getUserInfo(): Promise<PlaudUserInfo> {
