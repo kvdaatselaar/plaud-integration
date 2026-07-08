@@ -18,6 +18,8 @@ function parseTs(s: string): number {
 export function parseVtt(vtt: string): VttCue[] {
   const body = vtt
     .replace(/^﻿/, '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
     .replace(/^WEBVTT[^\n]*\n(?:[^\n]*\n)*?\n/, '');
   const blocks = body.split(/\n{2,}/);
   const cues: VttCue[] = [];

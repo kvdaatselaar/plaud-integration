@@ -243,8 +243,14 @@ async function main(): Promise<void> {
           log(`   ✓ ${title}`);
         }
       } catch (err) {
-        teamsFailed++;
-        log(`   ✗ Teams meeting "${cand.subject}": ${(err as Error).message}`);
+        const msg = (err as Error).message;
+        if (msg.includes('403') && msg.includes('does not have access')) {
+          log(`   ⏭ "${cand.subject}": geen transcript-rechten (waarschijnlijk niet-organizer)`);
+          teamsSkipped++;
+        } else {
+          teamsFailed++;
+          log(`   ✗ Teams meeting "${cand.subject}": ${msg}`);
+        }
       }
     }
   } catch (err) {

@@ -31,9 +31,14 @@ async function main(): Promise<void> {
         const status = flat ? '✓' : '∅';
         console.log(`- [${status}] "${cand.subject}"  transcript ${t.id.slice(0, 8)}  ${cues.length} cue(s), ${vtt.length}B raw, ${flat.length}B parsed`);
         if (process.argv.includes('--raw') && !flat) {
-          console.log('---RAW VTT (first 800 chars)---');
-          console.log(vtt.slice(0, 800));
+          console.log('---RAW VTT (first 1500 chars)---');
+          console.log(vtt.slice(0, 1500));
           console.log('---END---\n');
+        }
+        if (process.argv.includes('--dump') && !flat) {
+          const p = `/tmp/plaud-teams-${t.id.slice(0, 12)}.vtt`;
+          (await import('node:fs')).writeFileSync(p, vtt);
+          console.log(`   dumped to ${p}`);
         }
       }
     } catch (err) {
