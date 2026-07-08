@@ -54,6 +54,26 @@ Per opname-pagina:
 - Notes / highlights (uit Plaud's `note:` data)
 - Transcript met timestamps per zin (uit `source:` data)
 
+## Teams-meetings
+
+Naast Plaud pakt de sync ook je Microsoft Teams-meeting-transcripts van de
+laatste 30 dagen mee — dezelfde week-structuur, aparte pagina per Teams-meeting
+naast Plaud-opnames. In het overzicht krijgen Teams-items een 📞 badge.
+
+**Vereisten (eenmalig):**
+
+1. Azure app permissions: `OnlineMeetings.Read` + `OnlineMeetingTranscript.Read.All` — **admin-consent nodig**
+2. Na consent: `npm run graph:login` opnieuw zodat de refresh-token de nieuwe scopes bevat
+
+Zonder consent slaat de sync de Teams-fase netjes over met een log-melding —
+Plaud-sync blijft werken.
+
+Wat wél/niet:
+- ✅ Transcripts (VTT → nette `[hh:mm:ss] Speaker: text` opmaak)
+- ✅ Titel uit Outlook calendar event subject
+- ❌ AI-samenvatting (vereist Copilot for M365 + preview scope)
+- ❌ Video/audio recording download
+
 ## Lokale transcript-dump
 
 Naast OneNote schrijft de sync standaard ook een markdown-file per opname naar
@@ -150,6 +170,8 @@ cp .env.example .env
    **Delegated permissions** → vink aan:
    - `Notes.ReadWrite`
    - `Calendars.Read` (voor titel-matching met Outlook-agenda)
+   - `OnlineMeetings.Read` (Teams-meeting metadata) — **admin-consent**
+   - `OnlineMeetingTranscript.Read.All` (Teams transcripts) — **admin-consent**
    - `User.Read`
    - `offline_access`
 
@@ -304,7 +326,10 @@ src/
 ├── graph-auth.ts          # MSAL Node met file-backed token cache
 ├── onenote.ts             # Graph OneNote client (notebooks, sections, pages, PATCH)
 ├── calendar.ts            # Graph Calendar client + event-matching voor titels
+├── teams.ts               # Graph client voor Teams onlineMeetings + transcripts
+├── vtt.ts                 # VTT-parser (Teams-transcript formaat)
 ├── transcripts.ts         # lokale markdown-dump per opname
+├── audio-archive.ts       # audio-download helper (gedeeld met scripts/download-audio)
 └── plaud/                 # vendored Plaud client (zie plaud/VENDOR.md)
 scripts/
 ├── plaud-login.ts          # Plaud email/password (optie A)

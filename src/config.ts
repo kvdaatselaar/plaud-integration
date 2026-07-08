@@ -31,7 +31,20 @@ export const config = {
     msalCache: path.join(os.homedir(), '.plaud-integration', 'msal-cache.json'),
   },
   graph: {
+    // Scopes needed for the core sync — user-consentable.
     scopes: ['Notes.ReadWrite', 'Calendars.Read', 'offline_access', 'User.Read'],
+    // Teams-specific scopes require admin consent; requested separately so the
+    // Plaud sync doesn't crash when consent isn't in place yet.
+    teamsScopes: ['OnlineMeetings.Read', 'OnlineMeetingTranscript.Read.All'],
+    // Superset used by graph-login to request everything in one flow.
+    allScopes: [
+      'Notes.ReadWrite',
+      'Calendars.Read',
+      'OnlineMeetings.Read',
+      'OnlineMeetingTranscript.Read.All',
+      'offline_access',
+      'User.Read',
+    ],
     authority(tenantId: string) {
       return `https://login.microsoftonline.com/${tenantId}`;
     },

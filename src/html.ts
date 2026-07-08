@@ -1,7 +1,7 @@
 import { marked } from 'marked';
 import type { PlaudRecording, PlaudRecordingDetail } from './plaud/index.js';
 import type { WeekInfo } from './week.js';
-import type { WeekRecording } from './state.js';
+import type { WeekRecording, TeamsMeetingRecord } from './state.js';
 
 marked.setOptions({ gfm: true, breaks: true });
 
@@ -40,6 +40,48 @@ function transcriptToHtml(transcript: string): string {
       return `<p>${escape(line)}</p>`;
     })
     .join('\n');
+}
+
+export function buildTeamsPageHtml(input: {
+  subject: string;
+  startMs: number;
+  endMs: number;
+  onlineMeetingId: string;
+  transcript: string;
+}): { title: string; html: string; createdIso: string } {
+  const date = new Date(input.startMs);
+  const dateStr = date.toISOString().slice(0, 10);
+  const timeStr = date.toISOString().slice(11, 16);
+  const durationMin = Math.max(0, Math.round((input.endMs - input.startMs) / 60000));
+  const title = `${dateStr} ${timeStr} — ${input.subject.trim()}`;
+
+  const parts: string[] = [];
+  parts.push(`<p><strong>Bron:</strong> Microsoft Teams</p>`);
+  parts.push(`<p><strong>Datum:</strong> ${escape(dateStr)} ${escape(timeStr)}</p>`);
+  parts.push(`<p><strong>Duur:</strong> ${durationMin} min</p>`);
+  parts.push(`<p><strong>Meeting ID:</strong> ${escape(input.onlineMeetingId)}</p>`);
+
+  if (input.transcript.trim()) {
+    parts.push('<hr/>');
+    parts.push('<h2>Transcript</h2>');
+    parts.push(transcriptToHtml(input.transcript));
+  } else {
+    parts.push('<p><em>(Geen transcript beschikbaar)</em></p>');
+  }
+
+  const createdIso = date.toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>${escape(title)}</title>
+  <meta name="created" content="${createdIso}" />
+</head>
+<body>
+${parts.join('\n')}
+</body>
+</html>`;
+
+  return { title, html, createdIso };
 }
 
 export function buildPageHtml(
@@ -107,18 +149,50 @@ export function buildOverviewPageHtml(week: WeekInfo): string {
 </html>`;
 }
 
-export function buildOverviewBody(week: WeekInfo, recordings: WeekRecording[]): string {
+interface OverviewItem {
+  source: 'plaud' | 'teams';
+  startTime: number;
+  durationMs: number;
+  title: string;
+  clientUrl?: string;
+  webUrl?: string;
+}
+
+export function buildOverviewBody(
+  week: WeekInfo,
+  recordings: WeekRecording[],
+  teamsMeetings: TeamsMeetingRecord[] = [],
+): string {
   const parts: string[] = [];
   parts.push(`<h1>${escape(week.label)}</h1>`);
 
-  if (recordings.length === 0) {
+  const items: OverviewItem[] = [
+    ...recordings.map<OverviewItem>(r => ({
+      source: 'plaud',
+      startTime: r.startTime,
+      durationMs: r.durationMs,
+      title: r.title,
+      clientUrl: r.clientUrl,
+      webUrl: r.webUrl,
+    })),
+    ...teamsMeetings.map<OverviewItem>(t => ({
+      source: 'teams',
+      startTime: t.startTime,
+      durationMs: t.durationMs,
+      title: t.title,
+      clientUrl: t.clientUrl,
+      webUrl: t.webUrl,
+    })),
+  ];
+
+  if (items.length === 0) {
     parts.push('<p><em>Nog geen opnames deze week.</em></p>');
     return parts.join('\n');
   }
 
-  const sorted = [...recordings].sort((a, b) => a.startTime - b.startTime);
-  const byDay = new Map<string, WeekRecording[]>();
-  for (const r of sorted) {
+  items.sort((a, b) => a.startTime - b.startTime);
+  const byDay = new Map<string, OverviewItem[]>();
+  for (const r of items) {
     const d = new Date(r.startTime);
     const key = d.toISOString().slice(0, 10);
     const list = byDay.get(key) ?? [];
@@ -126,20 +200,21 @@ export function buildOverviewBody(week: WeekInfo, recordings: WeekRecording[]): 
     byDay.set(key, list);
   }
 
-  for (const [dayIso, items] of byDay) {
+  for (const [dayIso, dayItems] of byDay) {
     const d = new Date(`${dayIso}T00:00:00Z`);
     const dayName = DAY_NL[d.getUTCDay()];
     const dayLabel = `${capitalize(dayName)} ${d.getUTCDate()} ${MONTH_NL_LONG[d.getUTCMonth()]}`;
     parts.push(`<h2>${escape(dayLabel)}</h2>`);
     parts.push('<ul>');
-    for (const r of items) {
+    for (const r of dayItems) {
       const time = new Date(r.startTime).toISOString().slice(11, 16);
       const mins = Math.round(r.durationMs / 60_000);
       const link = r.clientUrl ?? r.webUrl ?? '';
+      const badge = r.source === 'teams' ? ' <span style="color:#6264a7">📞</span>' : '';
       const titleHtml = link
         ? `<a href="${escape(link)}">${escape(r.title)}</a>`
         : escape(r.title);
-      parts.push(`<li>${escape(time)} (${mins} min) — ${titleHtml}</li>`);
+      parts.push(`<li>${escape(time)} (${mins} min) — ${titleHtml}${badge}</li>`);
     }
     parts.push('</ul>');
   }

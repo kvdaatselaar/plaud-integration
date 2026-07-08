@@ -11,10 +11,23 @@ export interface WeekRecording {
   webUrl?: string;
 }
 
+export interface TeamsMeetingRecord {
+  onlineMeetingId: string;
+  transcriptId: string;
+  eventId?: string;
+  pageId: string;
+  title: string;
+  startTime: number;
+  durationMs: number;
+  clientUrl?: string;
+  webUrl?: string;
+}
+
 export interface WeekState {
   sectionId: string;
   overviewPageId: string;
   recordings: WeekRecording[];
+  teamsMeetings?: TeamsMeetingRecord[];
 }
 
 export interface OneNoteState {
@@ -25,6 +38,7 @@ export interface OneNoteState {
 
 interface StateFile {
   syncedIds: string[];
+  syncedTeamsTranscriptIds?: string[];
   onenote?: OneNoteState;
 }
 
@@ -38,10 +52,11 @@ function load(): StateFile {
     const parsed = JSON.parse(raw) as Partial<StateFile>;
     return {
       syncedIds: parsed.syncedIds ?? [],
+      syncedTeamsTranscriptIds: parsed.syncedTeamsTranscriptIds ?? [],
       onenote: parsed.onenote,
     };
   } catch {
-    return { syncedIds: [] };
+    return { syncedIds: [], syncedTeamsTranscriptIds: [] };
   }
 }
 
@@ -78,5 +93,17 @@ export const state = {
     const weeks = { ...(notebook.weeks ?? {}), [key]: week };
     s.onenote = { ...notebook, weeks };
     save(s);
+  },
+  hasSyncedTeams(transcriptId: string): boolean {
+    return (load().syncedTeamsTranscriptIds ?? []).includes(transcriptId);
+  },
+  markTeamsSynced(transcriptId: string): void {
+    const s = load();
+    const list = s.syncedTeamsTranscriptIds ?? [];
+    if (!list.includes(transcriptId)) {
+      list.push(transcriptId);
+      s.syncedTeamsTranscriptIds = list;
+      save(s);
+    }
   },
 };

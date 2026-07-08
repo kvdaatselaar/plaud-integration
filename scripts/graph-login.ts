@@ -4,7 +4,7 @@ import { config } from '../src/config.js';
 async function main(): Promise<void> {
   const app = createGraphApp();
   const result = await app.acquireTokenByDeviceCode({
-    scopes: config.graph.scopes,
+    scopes: config.graph.allScopes,
     deviceCodeCallback: (response) => {
       console.log('');
       console.log('==============================================');

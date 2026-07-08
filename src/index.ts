@@ -2,13 +2,15 @@ import { PlaudAuth, PlaudClient, PlaudConfig } from './plaud/index.js';
 import { config } from './config.js';
 import { state } from './state.js';
 import type { WeekState } from './state.js';
-import { getAccessTokenSilent } from './graph-auth.js';
+import { getAccessTokenSilent, tryGetAccessTokenSilent } from './graph-auth.js';
 import { OneNote } from './onenote.js';
 import { Calendar, matchEvent } from './calendar.js';
 import type { CalendarEvent } from './calendar.js';
-import { buildPageHtml, buildOverviewPageHtml, buildOverviewBody } from './html.js';
-import { writeTranscript } from './transcripts.js';
+import { buildPageHtml, buildTeamsPageHtml, buildOverviewPageHtml, buildOverviewBody } from './html.js';
+import { writeTranscript, writeTeamsTranscript } from './transcripts.js';
 import { ensureAudio } from './audio-archive.js';
+import { Teams } from './teams.js';
+import { vttToTranscript } from './vtt.js';
 import { isoWeekInfo } from './week.js';
 
 function log(msg: string): void {
@@ -150,8 +152,110 @@ async function main(): Promise<void> {
     }
   }
 
-  log(`Done. Synced ${ok}, skipped ${skipped}, failed ${failed}, total recordings ${recordings.length}`);
-  if (failed > 0) process.exit(1);
+  log(`Plaud done. Synced ${ok}, skipped ${skipped}, failed ${failed}, total recordings ${recordings.length}`);
+
+  // ── Teams meetings phase ─────────────────────────────────────────────
+  let teamsOk = 0;
+  let teamsSkipped = 0;
+  let teamsFailed = 0;
+  const teamsToken = await tryGetAccessTokenSilent([...config.graph.scopes, ...config.graph.teamsScopes]);
+  if (!teamsToken) {
+    log('Teams: overgeslagen — OnlineMeetings.Read / OnlineMeetingTranscript.Read.All');
+    log('       niet consented. Vraag admin-consent aan en run: npm run graph:login');
+    log(`Done. Plaud synced ${ok}, skipped ${skipped}, failed ${failed}.`);
+    if (failed > 0) process.exit(1);
+    return;
+  }
+  const teams = new Teams(teamsToken);
+  const since = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const until = Date.now();
+  log(`Teams: fetching online meetings from ${new Date(since).toISOString().slice(0, 10)} → now`);
+
+  try {
+    const candidates = await teams.listMeetingsFromCalendar(since, until);
+    log(`Teams: ${candidates.length} online meeting candidate(s)`);
+
+    for (const cand of candidates) {
+      try {
+        const meeting = await teams.resolveMeeting(cand.joinUrl);
+        if (!meeting) {
+          log(`   ⏭ Meeting object niet gevonden: "${cand.subject}"`);
+          teamsSkipped++;
+          continue;
+        }
+        const transcripts = await teams.listTranscripts(meeting.id);
+        if (transcripts.length === 0) {
+          teamsSkipped++;
+          continue;
+        }
+        for (const t of transcripts) {
+          if (state.hasSyncedTeams(t.id)) continue;
+          log(`→ Teams "${cand.subject}" transcript ${t.id.slice(0, 8)}…`);
+          const vtt = await teams.getTranscriptVtt(meeting.id, t.id);
+          const transcript = vttToTranscript(vtt);
+          if (!transcript) {
+            log(`   ⏭ VTT was leeg`);
+            teamsSkipped++;
+            continue;
+          }
+
+          const week = isoWeekInfo(new Date(cand.startMs));
+          const weekState = await ensureWeek(onenote, notebookId, week.key, week.label, week);
+
+          const { title, html } = buildTeamsPageHtml({
+            subject: cand.subject,
+            startMs: cand.startMs,
+            endMs: cand.endMs,
+            onlineMeetingId: meeting.id,
+            transcript,
+          });
+          const page = await onenote.createPage(weekState.sectionId, html);
+
+          const record = {
+            onlineMeetingId: meeting.id,
+            transcriptId: t.id,
+            eventId: cand.eventId,
+            pageId: page.id,
+            title,
+            startTime: cand.startMs,
+            durationMs: Math.max(0, cand.endMs - cand.startMs),
+            clientUrl: page.links?.oneNoteClientUrl?.href,
+            webUrl: page.links?.oneNoteWebUrl?.href,
+          };
+          weekState.teamsMeetings = [...(weekState.teamsMeetings ?? []), record];
+          state.setWeek(week.key, weekState);
+
+          await onenote.replacePageBody(
+            weekState.overviewPageId,
+            buildOverviewBody(week, weekState.recordings, weekState.teamsMeetings),
+          );
+
+          const mdPath = writeTeamsTranscript(week.label, title, {
+            onlineMeetingId: meeting.id,
+            transcriptId: t.id,
+            startMs: cand.startMs,
+            endMs: cand.endMs,
+          }, transcript);
+          if (mdPath) log(`   📄 ${mdPath}`);
+
+          state.markTeamsSynced(t.id);
+          teamsOk++;
+          log(`   ✓ ${title}`);
+        }
+      } catch (err) {
+        teamsFailed++;
+        log(`   ✗ Teams meeting "${cand.subject}": ${(err as Error).message}`);
+      }
+    }
+  } catch (err) {
+    log(`Teams-fase overgeslagen: ${(err as Error).message}`);
+    log('  (controleer of Calendars.Read, OnlineMeetings.Read en OnlineMeetingTranscript.Read.All');
+    log('   consent hebben; run "npm run graph:login" opnieuw na admin-consent.)');
+  }
+
+  log(`Teams done. Synced ${teamsOk}, skipped ${teamsSkipped}, failed ${teamsFailed}`);
+
+  if (failed > 0 || teamsFailed > 0) process.exit(1);
 }
 
 main().catch(err => {

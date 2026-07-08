@@ -74,3 +74,63 @@ export function writeTranscript(
   fs.writeFileSync(filePath, buildTranscriptMarkdown(rec, detail, title));
   return filePath;
 }
+
+interface TeamsMeta {
+  onlineMeetingId: string;
+  transcriptId: string;
+  startMs: number;
+  endMs: number;
+}
+
+export function buildTeamsTranscriptMarkdown(
+  meta: TeamsMeta,
+  title: string,
+  transcript: string,
+): string {
+  const date = new Date(meta.startMs);
+  const dateStr = date.toISOString().slice(0, 10);
+  const timeStr = date.toISOString().slice(11, 16);
+  const durationMin = Math.max(0, Math.round((meta.endMs - meta.startMs) / 60000));
+
+  const parts: string[] = [];
+  parts.push('---');
+  parts.push(`title: "${title.replace(/"/g, '\\"')}"`);
+  parts.push(`date: ${dateStr}`);
+  parts.push(`time: "${timeStr}"`);
+  parts.push(`duration_min: ${durationMin}`);
+  parts.push(`online_meeting_id: ${meta.onlineMeetingId}`);
+  parts.push(`transcript_id: ${meta.transcriptId}`);
+  parts.push('source: teams');
+  parts.push('---');
+  parts.push('');
+  parts.push(`# ${title}`);
+  parts.push('');
+  parts.push(`- **Datum:** ${dateStr} ${timeStr}`);
+  parts.push(`- **Duur:** ${durationMin} min`);
+  parts.push('');
+
+  if (transcript.trim()) {
+    parts.push('## Transcript');
+    parts.push('');
+    parts.push(transcript.trim());
+    parts.push('');
+  } else {
+    parts.push('_(Geen transcript beschikbaar)_');
+    parts.push('');
+  }
+  return parts.join('\n');
+}
+
+export function writeTeamsTranscript(
+  weekLabel: string,
+  title: string,
+  meta: TeamsMeta,
+  transcript: string,
+): string | null {
+  if (!config.transcripts.enabled) return null;
+  const weekDir = path.join(config.transcripts.dir, sanitize(weekLabel));
+  fs.mkdirSync(weekDir, { recursive: true });
+  const filePath = path.join(weekDir, `${sanitize(title)}.md`);
+  fs.writeFileSync(filePath, buildTeamsTranscriptMarkdown(meta, title, transcript));
+  return filePath;
+}

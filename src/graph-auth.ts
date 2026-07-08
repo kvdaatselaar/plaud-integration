@@ -47,7 +47,7 @@ export function createGraphApp(): PublicClientApplication {
   return new PublicClientApplication(msalConfig);
 }
 
-export async function getAccessTokenSilent(): Promise<string> {
+export async function getAccessTokenSilent(scopes: string[] = config.graph.scopes): Promise<string> {
   const app = createGraphApp();
   const accounts = await app.getTokenCache().getAllAccounts();
   if (accounts.length === 0) {
@@ -55,10 +55,18 @@ export async function getAccessTokenSilent(): Promise<string> {
   }
   const result = await app.acquireTokenSilent({
     account: accounts[0],
-    scopes: config.graph.scopes,
+    scopes,
   });
   if (!result?.accessToken) {
     throw new Error('Failed to acquire access token silently. Re-run: npm run graph:login');
   }
   return result.accessToken;
+}
+
+export async function tryGetAccessTokenSilent(scopes: string[]): Promise<string | null> {
+  try {
+    return await getAccessTokenSilent(scopes);
+  } catch {
+    return null;
+  }
 }
