@@ -79,19 +79,23 @@ npm run transcripts:dump
 
 ## Audio-download
 
-Losse MP3-export naast OneNote en transcript-dump. Streamt via Plaud's
-presigned download-URL, dus geen memory-blowup voor lange opnames.
+Audio wordt standaard tijdens `npm run sync` opgehaald naar
+`~/Documents/PlaudAudio/<weekLabel>/<title>.mp3`. Streamt via Plaud's
+presigned download-URL — geen memory-blowup voor lange opnames, en idempotent
+(bestaande files worden overgeslagen).
+
+Backfill / handmatig triggeren:
 
 ```bash
 npm run audio:download
 ```
 
-Doel: `~/Documents/PlaudAudio/<weekLabel>/<title>.mp3`. Idempotent — bestaande
-files worden overgeslagen.
-
 Config via `.env`:
 
 ```
+# Audio uit sync halen
+AUDIO=off
+
 # Aangepaste locatie
 AUDIO_DIR=/Users/jouw-naam/Documents/PlaudAudio
 

@@ -20,6 +20,11 @@ export const config = {
     enabled: (process.env.TRANSCRIPTS ?? 'on').toLowerCase() !== 'off',
     dir: process.env.TRANSCRIPTS_DIR ?? path.join(os.homedir(), 'Documents', 'PlaudTranscripts'),
   },
+  audio: {
+    enabled: (process.env.AUDIO ?? 'on').toLowerCase() !== 'off',
+    dir: process.env.AUDIO_DIR ?? path.join(os.homedir(), 'Documents', 'PlaudAudio'),
+    format: (process.env.AUDIO_FORMAT ?? 'mp3').toLowerCase() === 'opus' ? 'opus' as const : 'mp3' as const,
+  },
   paths: {
     dir: path.join(os.homedir(), '.plaud-integration'),
     state: path.join(os.homedir(), '.plaud-integration', 'state.json'),

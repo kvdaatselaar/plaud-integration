@@ -1,21 +1,9 @@
 import * as fs from 'node:fs';
-import * as path from 'node:path';
-import * as os from 'node:os';
+import { config } from '../src/config.js';
 import { state } from '../src/state.js';
 import { PlaudAuth, PlaudClient, PlaudConfig } from '../src/plaud/index.js';
+import { ensureAudio, audioFilePath } from '../src/audio-archive.js';
 import { isoWeekInfo } from '../src/week.js';
-
-const AUDIO_DIR = process.env.AUDIO_DIR ?? path.join(os.homedir(), 'Documents', 'PlaudAudio');
-const USE_OPUS = (process.env.AUDIO_FORMAT ?? 'mp3').toLowerCase() === 'opus';
-const EXT = USE_OPUS ? 'opus' : 'mp3';
-
-function sanitize(name: string): string {
-  return name
-    .replace(/[\/\\:*?"<>|]/g, '-')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 200);
-}
 
 function fmtBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -42,24 +30,26 @@ async function main(): Promise<void> {
     return;
   }
 
-  console.log(`→ ${items.length} opname(s), formaat ${EXT}, doelmap ${AUDIO_DIR}\n`);
+  console.log(`→ ${items.length} opname(s), formaat ${config.audio.format}, doelmap ${config.audio.dir}\n`);
 
   let ok = 0;
   let skipped = 0;
   let failed = 0;
   for (const it of items) {
-    const dir = path.join(AUDIO_DIR, sanitize(it.weekLabel));
-    const dest = path.join(dir, `${sanitize(it.title)}.${EXT}`);
-    if (fs.existsSync(dest)) {
-      console.log(`⏭ ${dest}  (${fmtBytes(fs.statSync(dest).size)})`);
-      skipped++;
-      continue;
-    }
+    const dest = audioFilePath(it.weekLabel, it.title);
     try {
       process.stdout.write(`→ ${dest} ... `);
-      await plaud.downloadAudioToFile(it.plaudId, dest, USE_OPUS);
-      console.log(`✓ ${fmtBytes(fs.statSync(dest).size)}`);
-      ok++;
+      const res = await ensureAudio(plaud, it.plaudId, it.weekLabel, it.title);
+      if (res.status === 'exists') {
+        console.log(`⏭ (${fmtBytes(fs.statSync(dest).size)})`);
+        skipped++;
+      } else if (res.status === 'disabled') {
+        console.log(`⚠ AUDIO=off in .env — skipping`);
+        skipped++;
+      } else {
+        console.log(`✓ ${fmtBytes(fs.statSync(dest).size)}`);
+        ok++;
+      }
     } catch (err) {
       console.log(`✗`);
       console.error(`   ${(err as Error).message}`);

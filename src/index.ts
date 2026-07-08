@@ -8,6 +8,7 @@ import { Calendar, matchEvent } from './calendar.js';
 import type { CalendarEvent } from './calendar.js';
 import { buildPageHtml, buildOverviewPageHtml, buildOverviewBody } from './html.js';
 import { writeTranscript } from './transcripts.js';
+import { ensureAudio } from './audio-archive.js';
 import { isoWeekInfo } from './week.js';
 
 function log(msg: string): void {
@@ -133,6 +134,13 @@ async function main(): Promise<void> {
 
       const transcriptPath = writeTranscript(week.label, title, rec, detail);
       if (transcriptPath) log(`   📄 ${transcriptPath}`);
+
+      try {
+        const audio = await ensureAudio(plaud, rec.id, week.label, title);
+        if (audio.status === 'wrote') log(`   🎧 ${audio.path}`);
+      } catch (err) {
+        log(`   ⚠ Audio download failed: ${(err as Error).message}`);
+      }
 
       ok++;
       log(`   ✓ ${title}`);
