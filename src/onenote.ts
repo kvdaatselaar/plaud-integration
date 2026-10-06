@@ -9,14 +9,21 @@ async function graphRequest<T>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
-  const res = await fetch(`${GRAPH_BASE}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/json',
-      ...(init.headers ?? {}),
-    },
-  });
+  let res: Response;
+  for (let attempt = 1; ; attempt++) {
+    res = await fetch(`${GRAPH_BASE}${path}`, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+        ...(init.headers ?? {}),
+      },
+    });
+    // OneNote throttles bursts (e.g. repair runs); honour Retry-After a few times.
+    if (res.status !== 429 || attempt >= 4) break;
+    const waitSec = Number(res.headers.get('retry-after')) || 10 * attempt;
+    await new Promise(r => setTimeout(r, waitSec * 1000));
+  }
   if (!res.ok) {
     let body: GraphError | string;
     try {
@@ -114,6 +121,10 @@ export class OneNote {
         ]),
       },
     );
+  }
+
+  async deletePage(pageId: string): Promise<void> {
+    await graphRequest<void>(this.token, `/me/onenote/pages/${pageId}`, { method: 'DELETE' });
   }
 
   async replacePageTitle(pageId: string, title: string): Promise<void> {

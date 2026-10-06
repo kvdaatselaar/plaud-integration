@@ -1,49 +1,51 @@
-import { Teams } from '../src/teams.js';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { Teams, GraphError } from '../src/teams.js';
 import { getAccessTokenSilent } from '../src/graph-auth.js';
 import { config } from '../src/config.js';
-import { vttToTranscript, parseVtt } from '../src/vtt.js';
+import { state } from '../src/state.js';
+import { collectTeamsTranscripts } from '../src/teams-sync.js';
+import { parseVtt } from '../src/vtt.js';
 
+// Usage: npm run teams:debug [-- --days=30] [-- --dump]
+// --dump writes transcripts that parse to zero cues to the temp dir, for format debugging.
 async function main(): Promise<void> {
+  const days = Number(process.argv.find(a => a.startsWith('--days='))?.slice(7) ?? 30);
   const token = await getAccessTokenSilent([...config.graph.scopes, ...config.graph.teamsScopes]);
   const teams = new Teams(token);
 
-  const since = Date.now() - 30 * 24 * 60 * 60 * 1000;
   const until = Date.now();
-  const candidates = await teams.listMeetingsFromCalendar(since, until);
-  console.log(`# ${candidates.length} online meeting candidate(s) laatste 30d\n`);
+  const since = until - days * 24 * 60 * 60 * 1000;
+  const { items, noAccess, errors } = await collectTeamsTranscripts(teams, since, until);
+  console.log(`# ${items.length} transcript(s) in de laatste ${days} dagen, ${noAccess.length} meeting(s) zonder toegang\n`);
 
-  for (const cand of candidates) {
+  for (const it of items) {
+    const synced = state.hasSyncedTeams(it.transcriptId, it.key) ? 'synced' : 'nieuw ';
+    const when = new Date(it.startMs).toISOString().slice(0, 16).replace('T', ' ');
+    let status: string;
     try {
-      const meeting = await teams.resolveMeeting(cand.joinUrl);
-      if (!meeting) {
-        console.log(`- [-] "${cand.subject}"  (geen onlineMeeting object gevonden)`);
-        continue;
-      }
-      const trs = await teams.listTranscripts(meeting.id);
-      if (trs.length === 0) {
-        console.log(`- [ ] "${cand.subject}"  (geen transcripts)`);
-        continue;
-      }
-      for (const t of trs) {
-        const vtt = await teams.getTranscriptVtt(meeting.id, t.id);
-        const cues = parseVtt(vtt);
-        const flat = vttToTranscript(vtt);
-        const status = flat ? '✓' : '∅';
-        console.log(`- [${status}] "${cand.subject}"  transcript ${t.id.slice(0, 8)}  ${cues.length} cue(s), ${vtt.length}B raw, ${flat.length}B parsed`);
-        if (process.argv.includes('--raw') && !flat) {
-          console.log('---RAW VTT (first 1500 chars)---');
-          console.log(vtt.slice(0, 1500));
-          console.log('---END---\n');
-        }
-        if (process.argv.includes('--dump') && !flat) {
-          const p = `/tmp/plaud-teams-${t.id.slice(0, 12)}.vtt`;
-          (await import('node:fs')).writeFileSync(p, vtt);
-          console.log(`   dumped to ${p}`);
-        }
+      const vtt = await teams.getTranscriptVtt(it.meetingId, it.transcriptId);
+      const cues = parseVtt(vtt).length;
+      status = cues > 0 ? `✓ ${cues} cues` : `∅ 0 cues (${vtt.length}B)`;
+      if (cues === 0 && process.argv.includes('--dump')) {
+        const p = path.join(os.tmpdir(), `plaud-teams-${it.transcriptId.slice(0, 12)}.vtt`);
+        fs.writeFileSync(p, vtt);
+        status += ` → ${p}`;
       }
     } catch (err) {
-      console.log(`- [!] "${cand.subject}"  ${(err as Error).message}`);
+      status = err instanceof GraphError ? `! ${err.status} ${err.code}` : `! ${(err as Error).message}`;
     }
+    console.log(`- [${synced}] ${when}  "${it.subject}"  ${status}`);
+  }
+
+  if (noAccess.length > 0) {
+    console.log('\n# Niet bereikbaar via Microsoft Graph');
+    for (const n of noAccess) console.log(`- "${n.subject}": ${n.reason}`);
+  }
+  if (errors.length > 0) {
+    console.log('\n# Fouten');
+    for (const e of errors) console.log(`- ${e}`);
   }
 }
 

@@ -71,8 +71,29 @@ Plaud-sync blijft werken.
 Wat wél/niet:
 - ✅ Transcripts (VTT → nette `[hh:mm:ss] Speaker: text` opmaak)
 - ✅ Titel uit Outlook calendar event subject
+- ✅ Meetings die je zelf organiseert (via `getAllTranscripts`, ook uitzonderingen in een reeks)
+- ✅ Meetings binnen Zig van een andere organisator waar je deelnemer bent
+- ✅ Terugkerende meetings: elke transcript landt op de datum van zijn eigen occurrence
+- ❌ Meetings georganiseerd door een andere organisatie (bv. klanten/leveranciers): Microsoft Graph
+  geeft geen toegang tot transcripts in een andere tenant. Ze staan aan het eind van elke sync-log
+  onder "niet bereikbaar via Microsoft Graph".
+- ❌ Meetings waar je via een groep/town hall bij zat (Graph ziet je dan niet als deelnemer)
 - ❌ AI-samenvatting (vereist Copilot for M365 + preview scope)
 - ❌ Video/audio recording download
+
+Microsoft heeft transcript-id's in het verleden opnieuw uitgegeven; de sync herkent een transcript
+daarom aan zijn aanmaaktijd, niet alleen aan het id.
+
+**Opschonen na oudere versies** — eerdere versies maakten dubbele pagina's (na zo'n id-wissel) en
+gaven alle transcripts van een terugkerende meeting de datum van de eerste occurrence:
+
+```bash
+npm run teams:repair              # dry run: laat zien wat er zou veranderen
+npm run teams:repair -- --apply   # verwijdert dubbelen, maakt verkeerd gedateerde pagina's opnieuw aan
+```
+
+Pagina's waarvan Microsoft de transcript niet meer heeft, blijven ongemoeid (dan is jouw pagina de
+enige kopie). Let op: eigen aantekeningen op verwijderde/opnieuw aangemaakte pagina's gaan verloren.
 
 ## Lokale transcript-dump
 
@@ -327,6 +348,8 @@ src/
 ├── onenote.ts             # Graph OneNote client (notebooks, sections, pages, PATCH)
 ├── calendar.ts            # Graph Calendar client + event-matching voor titels
 ├── teams.ts               # Graph client voor Teams onlineMeetings + transcripts
+├── teams-sync.ts          # Teams-transcripts verzamelen, aan occurrence koppelen, pagina aanmaken
+├── weeks.ts               # week-sectie + overzichtspagina beheer
 ├── vtt.ts                 # VTT-parser (Teams-transcript formaat)
 ├── transcripts.ts         # lokale markdown-dump per opname
 ├── audio-archive.ts       # audio-download helper (gedeeld met scripts/download-audio)
@@ -363,4 +386,6 @@ uninstall.sh                   # launchd unload + state cleanup
 | `npm run onenote:retitle` | Bestaande page-titels bijwerken obv Outlook-agenda |
 | `npm run transcripts:dump` | Backfill: markdown-files voor al gesynchroniseerde opnames |
 | `npm run audio:download` | MP3-export naar AUDIO_DIR (skip-if-exists) |
+| `npm run teams:debug` | Teams-transcripts in de laatste 30 dagen + meetings zonder toegang |
+| `npm run teams:repair` | Dubbele/verkeerd gedateerde Teams-pagina's opschonen (dry run; `-- --apply`) |
 | `npm run typecheck` | TypeScript check |

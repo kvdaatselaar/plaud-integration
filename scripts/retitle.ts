@@ -146,7 +146,7 @@ async function main(): Promise<void> {
     if (weekChanged) {
       state.setWeek(weekKey, weekState);
       try {
-        await onenote.replacePageBody(weekState.overviewPageId, buildOverviewBody(week, weekState.recordings));
+        await onenote.replacePageBody(weekState.overviewPageId, buildOverviewBody(week, weekState.recordings, weekState.teamsMeetings ?? []));
       } catch (err) {
         console.error(`Overview update failed for ${weekKey}: ${(err as Error).message}`);
       }

@@ -121,6 +121,28 @@ export function buildTeamsTranscriptMarkdown(
   return parts.join('\n');
 }
 
+/** True when the markdown file at `filePath` was written for this Teams transcript. */
+export function isTeamsTranscriptFile(filePath: string, transcriptId: string): boolean {
+  try {
+    return fs.readFileSync(filePath, 'utf-8').includes(`transcript_id: ${transcriptId}\n`);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Path for a Teams transcript. Two transcripts of the same meeting slot (e.g.
+ * transcription stopped and restarted) share a title, so the second gets " (2)".
+ */
+export function teamsTranscriptPath(weekLabel: string, title: string, transcriptId: string): string {
+  const weekDir = path.join(config.transcripts.dir, sanitize(weekLabel));
+  const base = sanitize(title);
+  for (let n = 1; ; n++) {
+    const candidate = path.join(weekDir, n === 1 ? `${base}.md` : `${base} (${n}).md`);
+    if (!fs.existsSync(candidate) || isTeamsTranscriptFile(candidate, transcriptId)) return candidate;
+  }
+}
+
 export function writeTeamsTranscript(
   weekLabel: string,
   title: string,
@@ -128,9 +150,8 @@ export function writeTeamsTranscript(
   transcript: string,
 ): string | null {
   if (!config.transcripts.enabled) return null;
-  const weekDir = path.join(config.transcripts.dir, sanitize(weekLabel));
-  fs.mkdirSync(weekDir, { recursive: true });
-  const filePath = path.join(weekDir, `${sanitize(title)}.md`);
+  const filePath = teamsTranscriptPath(weekLabel, title, meta.transcriptId);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, buildTeamsTranscriptMarkdown(meta, title, transcript));
   return filePath;
 }

@@ -14,6 +14,8 @@ export interface WeekRecording {
 export interface TeamsMeetingRecord {
   onlineMeetingId: string;
   transcriptId: string;
+  /** Stable identity (transcript creation time); Microsoft has re-issued transcript ids before. */
+  transcriptKey?: string;
   eventId?: string;
   pageId: string;
   title: string;
@@ -39,6 +41,7 @@ export interface OneNoteState {
 interface StateFile {
   syncedIds: string[];
   syncedTeamsTranscriptIds?: string[];
+  syncedTeamsKeys?: string[];
   onenote?: OneNoteState;
 }
 
@@ -53,10 +56,11 @@ function load(): StateFile {
     return {
       syncedIds: parsed.syncedIds ?? [],
       syncedTeamsTranscriptIds: parsed.syncedTeamsTranscriptIds ?? [],
+      syncedTeamsKeys: parsed.syncedTeamsKeys ?? [],
       onenote: parsed.onenote,
     };
   } catch {
-    return { syncedIds: [], syncedTeamsTranscriptIds: [] };
+    return { syncedIds: [], syncedTeamsTranscriptIds: [], syncedTeamsKeys: [] };
   }
 }
 
@@ -94,16 +98,19 @@ export const state = {
     s.onenote = { ...notebook, weeks };
     save(s);
   },
-  hasSyncedTeams(transcriptId: string): boolean {
-    return (load().syncedTeamsTranscriptIds ?? []).includes(transcriptId);
-  },
-  markTeamsSynced(transcriptId: string): void {
+  hasSyncedTeams(transcriptId: string, key?: string): boolean {
     const s = load();
-    const list = s.syncedTeamsTranscriptIds ?? [];
-    if (!list.includes(transcriptId)) {
-      list.push(transcriptId);
-      s.syncedTeamsTranscriptIds = list;
-      save(s);
-    }
+    return (s.syncedTeamsTranscriptIds ?? []).includes(transcriptId)
+      || (!!key && (s.syncedTeamsKeys ?? []).includes(key));
+  },
+  markTeamsSynced(transcriptId: string, key?: string): void {
+    const s = load();
+    const ids = s.syncedTeamsTranscriptIds ?? [];
+    const keys = s.syncedTeamsKeys ?? [];
+    if (!ids.includes(transcriptId)) ids.push(transcriptId);
+    if (key && !keys.includes(key)) keys.push(key);
+    s.syncedTeamsTranscriptIds = ids;
+    s.syncedTeamsKeys = keys;
+    save(s);
   },
 };

@@ -24,6 +24,7 @@
     "audio:download": "tsx scripts/download-audio.ts",
     "plaud:debug": "tsx scripts/plaud-debug.ts",
     "teams:debug": "tsx scripts/teams-debug.ts",
+    "teams:repair": "tsx scripts/teams-repair.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
