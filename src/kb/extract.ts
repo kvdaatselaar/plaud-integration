@@ -6,7 +6,7 @@ import type { SourceTranscript } from './sources.js';
 import type { Vocabulary } from './vocabulary.js';
 
 /** Bump when prompts or schema change in a way that should re-run extraction. */
-export const PROMPT_VERSION = 1;
+export const PROMPT_VERSION = 2;
 
 export interface ActionItem {
   actie: string;
@@ -34,10 +34,14 @@ interface CacheEntry {
   createdAt: string;
 }
 
+/** Hard caps, enforced by the model's output grammar and again in normalize(). */
+const MAX = { onderwerpen: 5, besluiten: 12, actiepunten: 15, open_vragen: 10, personen: 25, overige_personen: 40, kernpunten: 8 };
+
 const str = { type: 'string' };
-const strList = { type: 'array', items: str };
+const strList = (maxItems: number) => ({ type: 'array', items: str, maxItems });
 const actions = {
   type: 'array',
+  maxItems: MAX.actiepunten,
   items: {
     type: 'object',
     properties: { actie: str, eigenaar: str, deadline: str },
@@ -47,13 +51,13 @@ const actions = {
 const PART_SCHEMA = {
   type: 'object',
   properties: {
-    kernpunten: strList,
-    besluiten: strList,
+    kernpunten: strList(MAX.kernpunten),
+    besluiten: strList(MAX.besluiten),
     actiepunten: actions,
-    open_vragen: strList,
-    personen: strList,
-    overige_personen: strList,
-    onderwerpen: strList,
+    open_vragen: strList(MAX.open_vragen),
+    personen: strList(MAX.personen),
+    overige_personen: strList(MAX.overige_personen),
+    onderwerpen: strList(MAX.onderwerpen),
   },
   required: ['kernpunten', 'besluiten', 'actiepunten', 'open_vragen', 'personen', 'overige_personen', 'onderwerpen'],
 };
@@ -62,12 +66,12 @@ const finalSchema = (types: string[]) => ({
   properties: {
     samenvatting: str,
     type: { type: 'string', enum: types },
-    besluiten: strList,
+    besluiten: strList(MAX.besluiten),
     actiepunten: actions,
-    open_vragen: strList,
-    personen: strList,
-    overige_personen: strList,
-    onderwerpen: strList,
+    open_vragen: strList(MAX.open_vragen),
+    personen: strList(MAX.personen),
+    overige_personen: strList(MAX.overige_personen),
+    onderwerpen: strList(MAX.onderwerpen),
   },
   required: ['samenvatting', 'type', 'besluiten', 'actiepunten', 'open_vragen', 'personen', 'overige_personen', 'onderwerpen'],
 });
@@ -109,7 +113,8 @@ function header(src: SourceTranscript): string {
 const LIST_FIELDS = `- besluiten, actiepunten (actie, eigenaar, deadline indien genoemd) en open_vragen
 - personen: sprekende of genoemde personen die op de personenlijst staan, in de schrijfwijze van de lijst
 - overige_personen: andere persoonsnamen die genoemd worden (alleen de naam)
-- onderwerpen: 1-5 onderwerpen; kies uit de onderwerpenlijst, of formuleer kort een nieuw onderwerp als niets past`;
+- onderwerpen: maximaal 5, alleen de hoofdonderwerpen van het gesprek; kies uit de onderwerpenlijst, of formuleer kort (1-3 woorden) een nieuw onderwerp als niets past
+- open_vragen: alleen vragen die aan het eind echt onbeantwoord zijn, maximaal 10`;
 
 /** Split on line boundaries so a chunk never cuts a sentence in half. */
 export function chunk(text: string, size: number): string[] {
@@ -131,22 +136,24 @@ export function chunk(text: string, size: number): string[] {
 }
 
 function normalize(raw: Partial<Extraction>, types: string[]): Extraction {
-  const list = (v: unknown) => (Array.isArray(v) ? v.map(x => String(x).trim()).filter(Boolean) : []);
+  const list = (v: unknown, max: number) =>
+    (Array.isArray(v) ? [...new Set(v.map(x => String(x).trim()).filter(Boolean))].slice(0, max) : []);
   return {
     samenvatting: String(raw.samenvatting ?? '').trim(),
     type: types.includes(String(raw.type)) ? String(raw.type) : 'overig',
-    besluiten: list(raw.besluiten),
+    besluiten: list(raw.besluiten, MAX.besluiten),
     actiepunten: (Array.isArray(raw.actiepunten) ? raw.actiepunten : [])
       .filter(a => a && String(a.actie ?? '').trim())
       .map(a => ({
         actie: String(a.actie).trim(),
         eigenaar: a.eigenaar ? String(a.eigenaar).trim() || undefined : undefined,
         deadline: a.deadline ? String(a.deadline).trim() || undefined : undefined,
-      })),
-    open_vragen: list(raw.open_vragen),
-    personen: list(raw.personen),
-    overige_personen: list(raw.overige_personen),
-    onderwerpen: list(raw.onderwerpen),
+      }))
+      .slice(0, MAX.actiepunten),
+    open_vragen: list(raw.open_vragen, MAX.open_vragen),
+    personen: list(raw.personen, MAX.personen),
+    overige_personen: list(raw.overige_personen, MAX.overige_personen),
+    onderwerpen: list(raw.onderwerpen, MAX.onderwerpen),
   };
 }
 
@@ -204,7 +211,7 @@ Combineer ze tot één resultaat:
 ${typeLine}
 - besluiten, actiepunten en open_vragen: ontdubbeld; vervalt een open vraag doordat hij later beantwoord is, laat hem dan weg
 - personen, overige_personen: ontdubbeld
-- onderwerpen: 1-5 voor het hele gesprek
+- onderwerpen: maximaal 5 hoofdonderwerpen voor het hele gesprek
 
 ${JSON.stringify(partials)}`, schema, MOCK);
   return normalize(raw, vocab.types);
