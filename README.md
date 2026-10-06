@@ -144,6 +144,93 @@ AUDIO_DIR=/Users/jouw-naam/Documents/PlaudAudio
 AUDIO_FORMAT=opus
 ```
 
+## Kennisbank: verrijken en indexeren
+
+Twee losse stappen na het ophalen maken van het transcriptarchief een doorzoekbare kennisbank. Beide zijn
+apart uit te voeren en veilig te herhalen. De week-mappen in het transcriptarchief worden alleen gelezen;
+de kennisbank komt in een eigen map ernaast (`KB_DIR`, standaard `<map boven TRANSCRIPTS_DIR>/Kennisbank`).
+
+```
+Kennisbank/
+├── CLAUDE.md                 # hoe je de kennisbank bevraagt (voor Claude Code)
+├── INDEX.md                  # startpunt: actiepunten, onderwerpen, personen, gesprekken per maand
+├── gesprekken/2026-10/…md    # één gespreksbestand per transcript
+├── personen/…md              # per persoon uit de vaste lijst
+├── onderwerpen/…md           # per onderwerp uit de vaste lijst
+└── _beheer/                  # vaste lijst, kandidaten en cache (geen onderdeel van de kennisbank)
+```
+
+**Vereiste: een lokaal taalmodel.** De transcripten bevatten klantgegevens en mogen volgens het beleid van
+Zig niet naar een cloud-LLM. Verrijken draait daarom op [Ollama](https://ollama.com) op je eigen Mac:
+
+```bash
+brew install ollama && brew services start ollama
+ollama pull gemma3:12b          # ±8 GB; past op een Mac met 16+ GB geheugen
+```
+
+Een ander lokaal model kan via `KB_MODEL`. Het script weigert een niet-lokale `KB_LLM_URL`, tenzij je
+bewust `KB_ALLOW_REMOTE_LLM=yes` zet. Doe dat alleen met expliciete toestemming.
+
+### Stap 1: verrijken (`npm run kb:enrich`)
+
+Maakt per transcript een gespreksbestand met YAML-metadata (`datum`, `tijd`, `type`, `personen`,
+`onderwerpen`, `bron`) en de secties Samenvatting, Besluiten, Actiepunten en Open vragen. Lange gesprekken
+worden in delen samengevat en daarna samengevoegd.
+
+```bash
+npm run kb:enrich                        # nieuwe/gewijzigde transcripten + alles opnieuw renderen
+npm run kb:enrich -- --dry-run           # hoeveel transcripten en modelaanroepen er klaarstaan
+npm run kb:enrich -- --limit=5           # proefrun, of de eerste run in porties
+npm run kb:enrich -- --since=2026-09-01  # alleen recente transcripten
+npm run kb:enrich -- --force             # alles opnieuw door het model (na een modelwissel)
+```
+
+- **Herhaalbaar:** de modeluitvoer wordt per transcriptinhoud gecachet. Een transcript gaat dus maar één keer
+  door het model. Daarna wordt alleen opnieuw gekoppeld aan de vaste lijst en gerenderd, en dat kost seconden.
+  De eerste run over het hele archief duurt lang (orde van uren); `--limit` spreidt hem.
+- **Eigen werk blijft staan:** afgevinkte actiepunten (`- [x]`) en tekst onder `## Notities` blijven bewaard,
+  ook als de titel van het gesprek verandert.
+- **Privacy:** het model krijgt de instructie geen gevoelige klantgegevens op te nemen. Daarnaast filtert de
+  code altijd e-mailadressen, telefoonnummers, IBAN's, BSN's en links met tokens. Namen die niet op de vaste
+  lijst staan worden in alle teksten (ook titels) vervangen door `[naam]`.
+
+### Stap 2: indexeren (`npm run kb:index`)
+
+Bouwt `INDEX.md` en een pagina per persoon en per onderwerp opnieuw op uit de gespreksbestanden, en houdt
+`CLAUDE.md` actueel. Er zijn geen netwerk- of modelaanroepen, dus deze stap is altijd snel. Pagina's van
+personen of onderwerpen die niet meer voorkomen worden opgeruimd.
+
+`npm run kb` draait beide stappen na elkaar. Met `KB_AUTO=on` in `.env` doet de dagelijkse launchd-run dat
+na de sync automatisch. Daarvoor moet Ollama draaien.
+
+### De vaste lijst (`_beheer/vocabulaire.yml`)
+
+Alleen personen en onderwerpen uit deze lijst komen in de kennisbank. Varianten (bijnamen, afkortingen,
+spraakherkenningsfouten) zet je als `aliassen` onder één `naam`, zodat ze worden samengevoegd. Na elke
+verrijking staat in `_beheer/kandidaten.md` wat het model wél vond maar wat nog niet op de lijst staat,
+met het aantal gesprekken. Neem over wat erin hoort en draai `npm run kb`; het model wordt daarvoor niet
+opnieuw aangeroepen.
+
+```yaml
+personen:
+  - naam: Jan de Vries
+    aliassen: [Jan, J. de Vries]
+    organisatie: Zig
+    rol: Product owner
+onderwerpen:
+  - naam: Datamigratie
+    aliassen: [data migratie, migratie van klantdata]
+    omschrijving: Overzetten van klantdata naar het nieuwe platform
+types: [overleg, 1-op-1, klantgesprek, stuurgroep, workshop, presentatie, sollicitatie, overig]
+```
+
+De lijst staat in je kennisbankmap, niet in deze repository: hij bevat namen van collega's.
+
+### Bevragen
+
+Open Claude Code in de map `Kennisbank`. `CLAUDE.md` legt uit waar wat staat, hoe je zoekt, dat antwoorden
+een bron noemen en dat de ruwe transcripten en `_beheer/` buiten bereik blijven.
+
 ## Quick install (one-liner)
 
 ```bash
@@ -353,6 +440,7 @@ src/
 ├── vtt.ts                 # VTT-parser (Teams-transcript formaat)
 ├── transcripts.ts         # lokale markdown-dump per opname
 ├── audio-archive.ts       # audio-download helper (gedeeld met scripts/download-audio)
+├── kb/                    # kennisbank: bronnen, extractie (Ollama), redactie, gespreksbestanden, index
 └── plaud/                 # vendored Plaud client (zie plaud/VENDOR.md)
 scripts/
 ├── plaud-login.ts          # Plaud email/password (optie A)
@@ -364,7 +452,12 @@ scripts/
 ├── retitle.ts              # bestaande page-titels bijwerken obv agenda
 ├── dump-transcripts.ts     # backfill van markdown-files voor al gesynchroniseerde opnames
 ├── download-audio.ts       # MP3-export naar lokale map (idempotent)
-└── run-sync.sh             # launchd wrapper (laadt nvm)
+├── kb-enrich.ts            # kennisbank stap 1: verrijken
+├── kb-index.ts             # kennisbank stap 2: indexeren
+└── run-sync.sh             # launchd wrapper (laadt nvm; KB_AUTO=on → ook kennisbank)
+knowledge/
+├── CLAUDE.md               # sjabloon voor Kennisbank/CLAUDE.md
+└── vocabulaire.template.yml
 launchd/
 └── local.plaud-integration.plist.template
 install.sh                     # eenmalige setup (idempotent)
@@ -388,4 +481,7 @@ uninstall.sh                   # launchd unload + state cleanup
 | `npm run audio:download` | MP3-export naar AUDIO_DIR (skip-if-exists) |
 | `npm run teams:debug` | Teams-transcripts in de laatste 30 dagen + meetings zonder toegang |
 | `npm run teams:repair` | Dubbele/verkeerd gedateerde Teams-pagina's opschonen (dry run; `-- --apply`) |
+| `npm run kb:enrich` | Kennisbank stap 1: gespreksbestanden maken (lokaal taalmodel) |
+| `npm run kb:index` | Kennisbank stap 2: INDEX.md + pagina's per persoon en onderwerp |
+| `npm run kb` | Beide kennisbankstappen |
 | `npm run typecheck` | TypeScript check |

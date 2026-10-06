@@ -25,13 +25,17 @@
     "plaud:debug": "tsx scripts/plaud-debug.ts",
     "teams:debug": "tsx scripts/teams-debug.ts",
     "teams:repair": "tsx scripts/teams-repair.ts",
+    "kb:enrich": "tsx scripts/kb-enrich.ts",
+    "kb:index": "tsx scripts/kb-index.ts",
+    "kb": "npm run --silent kb:enrich; npm run --silent kb:index",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@azure/msal-node": "^2.16.2",
     "dotenv": "^16.4.7",
     "marked": "^18.0.1",
-    "playwright": "^1.49.0"
+    "playwright": "^1.49.0",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
