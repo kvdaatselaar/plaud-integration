@@ -8,7 +8,7 @@ import type { Vocabulary } from './vocabulary.js';
 // Discovery pass to design the fixed list: one cheap call per transcript that
 // proposes free themes and a type, before the expensive full enrichment.
 
-export const ANALYSIS_VERSION = 1;
+export const ANALYSIS_VERSION = 2;
 const SAMPLE_CHARS = 10000;
 
 export interface Profile {
@@ -54,10 +54,11 @@ function schema(types: string[]) {
 const SYSTEM = `Je helpt een kennisbank van zakelijke gesprekken van Zig (softwareleverancier voor woningcorporaties) in te richten. Je krijgt (een steekproef uit) een automatisch transcript en typeert het gesprek.
 
 Regels:
-- themas: 2 tot 5 algemene thema's van 1-3 woorden, zoals een vakgebied, product, proces of project ("datamigratie", "prijsmodel", "teamstructuur"). Gebruik GEEN namen van personen of organisaties in thema's.
+- themas: 2 tot 5 algemene thema's van 1-3 woorden: het vakgebied, product, proces of project waar het gesprek inhoudelijk over gaat. Gebruik GEEN namen van personen of organisaties in thema's.
+- Maak geen thema van persoonlijke omstandigheden van individuen (gezondheid, privéleven, salaris of beoordeling van een persoon).
 - organisaties: genoemde organisaties (klanten, partners, leveranciers), alleen de naam.
-- type_passend: het best passende type uit de lijst; type_past_goed: of dat type het gesprek echt goed beschrijft.
 - type_vrij: hoe je dit soort gesprek zelf zou noemen, in 1-3 woorden, zonder namen.
+- type_passend: daarna het best passende type uit de lijst.
 - Baseer je alleen op het transcript; verzin niets.`;
 
 function cachePath(hash: string): string {
