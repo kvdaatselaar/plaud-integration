@@ -171,6 +171,19 @@ ollama pull gemma3:12b          # ±8 GB; past op een Mac met 16+ GB geheugen
 Een ander lokaal model kan via `KB_MODEL`. Het script weigert een niet-lokale `KB_LLM_URL`, tenzij je
 bewust `KB_ALLOW_REMOTE_LLM=yes` zet. Doe dat alleen met expliciete toestemming.
 
+### Vooraf: inrichting bepalen (`npm run kb:analyze`)
+
+Voordat je het hele archief verrijkt, kun je een snelle analyse draaien om de vaste lijst goed in te richten.
+Per gesprek doet het lokale model één aanroep op een steekproef (begin, midden, eind) en stelt vrije thema's,
+een gesprekstype (en of de huidige typelijst past) en de genoemde organisaties voor. Duur: ongeveer 20
+seconden per gesprek; resultaten worden gecachet.
+
+- `_beheer/analyse.md`: rapport met thema's, types, organisaties en terugkerende reeksen, met voorbeelden
+- `_beheer/analyse-aggregaat.json`: alleen thema's, types en aantallen, zonder organisatienamen
+
+Gebruik dit om onderwerpen, aliassen en types in `vocabulaire.yml` vast te leggen; het model kiest bij het
+verrijken dan uit jouw lijst in plaats van eigen varianten te bedenken.
+
 ### Stap 1: verrijken (`npm run kb:enrich`)
 
 Maakt per transcript een gespreksbestand met YAML-metadata (`datum`, `tijd`, `type`, `personen`,
@@ -452,6 +465,7 @@ scripts/
 ├── retitle.ts              # bestaande page-titels bijwerken obv agenda
 ├── dump-transcripts.ts     # backfill van markdown-files voor al gesynchroniseerde opnames
 ├── download-audio.ts       # MP3-export naar lokale map (idempotent)
+├── kb-analyze.ts           # kennisbank: analyse voor de inrichting van de vaste lijst
 ├── kb-enrich.ts            # kennisbank stap 1: verrijken
 ├── kb-index.ts             # kennisbank stap 2: indexeren
 └── run-sync.sh             # launchd wrapper (laadt nvm; KB_AUTO=on → ook kennisbank)
@@ -481,6 +495,7 @@ uninstall.sh                   # launchd unload + state cleanup
 | `npm run audio:download` | MP3-export naar AUDIO_DIR (skip-if-exists) |
 | `npm run teams:debug` | Teams-transcripts in de laatste 30 dagen + meetings zonder toegang |
 | `npm run teams:repair` | Dubbele/verkeerd gedateerde Teams-pagina's opschonen (dry run; `-- --apply`) |
+| `npm run kb:analyze` | Analyse vooraf: thema's en types voorstellen voor de vaste lijst |
 | `npm run kb:enrich` | Kennisbank stap 1: gespreksbestanden maken (lokaal taalmodel) |
 | `npm run kb:index` | Kennisbank stap 2: INDEX.md + pagina's per persoon en onderwerp |
 | `npm run kb` | Beide kennisbankstappen |
