@@ -6,7 +6,7 @@ import type { SourceTranscript } from './sources.js';
 import { ORG_KINDS, type Vocabulary } from './vocabulary.js';
 
 /** Bump when prompts or schema change in a way that should re-run extraction. */
-export const PROMPT_VERSION = 4;
+export const PROMPT_VERSION = 5;
 
 export interface ActionItem {
   actie: string;
@@ -161,7 +161,7 @@ const LIST_FIELDS = `- besluiten, actiepunten (actie, eigenaar, deadline indien 
 - personen: sprekende of genoemde personen die op de personenlijst staan, in de schrijfwijze van de lijst
 - overige_personen: andere persoonsnamen die genoemd worden (alleen de naam)
 - onderwerpen: maximaal 5 onderwerpen waar het gesprek inhoudelijk over gaat; kies uit de onderwerpenlijst het meest specifieke (subonderwerp als dat past, anders het hoofdonderwerp), of formuleer kort (1-3 woorden) een nieuw onderwerp als niets past
-- organisaties: organisaties waar het gesprek over gaat (niet Zig zelf), in de schrijfwijze van de organisatielijst als ze daarop staan; relatie: hoe de organisatie zich volgens dit gesprek tot Zig verhoudt, één van de organisatiesoorten
+- organisaties: bedrijven en instellingen bij naam waar het gesprek over gaat (niet Zig zelf; geen landen, steden, afdelingen, teams, producten of functies), in de schrijfwijze van de organisatielijst als ze daarop staan; relatie: hoe de organisatie zich volgens dit gesprek tot Zig verhoudt, één van de organisatiesoorten
 - open_vragen: alleen vragen die aan het eind echt onbeantwoord zijn, maximaal 10`;
 
 /** Split on line boundaries so a chunk never cuts a sentence in half. */

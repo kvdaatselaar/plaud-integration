@@ -170,11 +170,26 @@ export async function maintain(
   const ownOrg = manual.owner?.organisatie ?? (calendar ? domainLabel(calendar.me.domain) : 'Zig');
 
   // ── Organisations: domains of external attendees + names the model mentions, merged by sound ──
-  interface OrgGroup { spellings: Map<string, number>; conversations: Set<string>; domains: Set<string>; votes: Map<string, number> }
+  interface OrgGroup {
+    spellings: Map<string, number>;
+    conversations: Set<string>;
+    domains: Set<string>;
+    votes: Map<string, number>;
+    /** The organisation in vocabulaire.yml this group belongs to: its name and aliases decide. */
+    manual?: VocabEntry;
+  }
   const groups = new Map<string, OrgGroup>();
+  const manualBySound = new Map<string, VocabEntry>();
+  for (const o of manual.organisations) {
+    for (const n of [o.naam, ...o.aliassen]) {
+      const k = soundKey(n);
+      if (k.length >= 4 && !manualBySound.has(k)) manualBySound.set(k, o);
+    }
+  }
   const group = (name: string) => {
-    const key = soundKey(name) || flat(name);
-    const g = groups.get(key) ?? { spellings: new Map(), conversations: new Set(), domains: new Set(), votes: new Map() };
+    const own = manual.matchOrganisation(name) ?? manualBySound.get(soundKey(name));
+    const key = own ? `vocabulaire:${own.naam}` : soundKey(name) || flat(name);
+    const g = groups.get(key) ?? { spellings: new Map(), conversations: new Set(), domains: new Set(), votes: new Map(), manual: own };
     groups.set(key, g);
     return g;
   };
@@ -211,16 +226,19 @@ export async function maintain(
   const organisations: Maintenance['organisations'] = [];
   const excluded: Maintenance['excluded'] = [];
   for (const g of groups.values()) {
-    if (g.domains.size === 0 && g.conversations.size < policy.minGesprekkenOrganisatie) continue;
+    // Organisations you listed yourself need no minimum; others must recur.
+    if (!g.manual && g.domains.size === 0 && g.conversations.size < policy.minGesprekkenOrganisatie) continue;
     const spellings = [...g.spellings].sort((a, b) => b[1] - a[1]).map(([s]) => s);
     const labels = [...g.domains].map(domainLabel);
     // Prefer the spelling that matches an e-mail domain ("Acme" over the misheard "Akme").
-    const naam = spellings.find(s => labels.some(l => flat(l) === flat(s)))
+    const naam = g.manual?.naam
+      ?? spellings.find(s => labels.some(l => flat(l) === flat(s)))
       ?? labels[0]
       ?? spellings.find(s => /^\p{Lu}/u.test(s))
       ?? spellings[0];
-    if (flat(naam) === flat(ownOrg) || manual.matchTopic(naam) || manual.ignored(naam)) continue;
-    const aliassen = [...new Set([...spellings, ...labels].filter(s => flat(s) !== flat(naam)))];
+    if (manual.ignored(naam) || (!g.manual && (flat(naam) === flat(ownOrg) || manual.matchTopic(naam)))) continue;
+    const known = [naam, ...(g.manual?.aliassen ?? [])].map(flat);
+    const aliassen = [...new Set([...spellings, ...labels].filter(s => !known.includes(flat(s))))];
     for (const d of g.domains) orgForDomain.set(d, naam);
 
     const key = normalizeKey(naam);
