@@ -27,6 +27,7 @@
     "teams:repair": "tsx scripts/teams-repair.ts",
     "kb:analyze": "tsx scripts/kb-analyze.ts",
     "kb:vocab": "tsx scripts/kb-vocab.ts",
+    "kb:aliassen": "tsx scripts/kb-aliassen.ts",
     "kb:enrich": "tsx scripts/kb-enrich.ts",
     "kb:index": "tsx scripts/kb-index.ts",
     "kb": "npm run --silent kb:enrich; npm run --silent kb:index",

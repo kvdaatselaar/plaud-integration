@@ -239,7 +239,15 @@ Gesprekken met dezelfde titel krijgen automatisch een `reeks` en een eigen pagin
 npm run kb:analyze                  # thema's en types per gesprek (lokaal model, ±20 s per gesprek)
 npm run kb:vocab                    # voorstel voor personen en organisaties → _beheer/vocabulaire.voorstel.yml
 npm run kb:vocab -- --volledig      # idem, ook voor namen die al op de lijst staan
+npm run kb:aliassen                 # schrijfvarianten van de spraakherkenning → _beheer/aliassen.voorstel.md
+npm run kb:aliassen -- --toepassen  # varianten van organisaties en onderwerpen direct toevoegen
 ```
+
+`kb:aliassen` zoekt in de transcripten naar woorden en woordparen die *klinken* als een naam op de lijst maar
+anders gespeld zijn (een eenvoudige klanksleutel voor Nederlands en Engels: "akme" en "Acmee" → Acme,
+"Woon Net" → WoonNet). Afkortingen en woordparen met een vulwoord tellen niet mee. Loop het voorstel na:
+een gewoon woord dat toevallig hetzelfde klinkt hoort er niet in. `--toepassen` voegt bij organisaties alleen
+varianten toe die meestal met een hoofdletter staan.
 
 `kb:vocab` haalt personen uit de agenda-uitnodigingen van je opgenomen gesprekken (alleen meetings met
 hoogstens 15 deelnemers, minimaal 2 gesprekken). Collega's met je eigen e-maildomein staan aan,
@@ -480,6 +488,7 @@ scripts/
 ├── download-audio.ts       # MP3-export naar lokale map (idempotent)
 ├── kb-analyze.ts           # kennisbank: analyse voor de inrichting van de vaste lijst
 ├── kb-vocab.ts             # kennisbank: voorstel personen en organisaties voor de vaste lijst
+├── kb-aliassen.ts          # kennisbank: schrijfvarianten van namen (klanksleutel)
 ├── kb-enrich.ts            # kennisbank stap 1: verrijken
 ├── kb-index.ts             # kennisbank stap 2: indexeren
 └── run-sync.sh             # launchd wrapper (laadt nvm; KB_AUTO=on → ook kennisbank)
@@ -511,6 +520,7 @@ uninstall.sh                   # launchd unload + state cleanup
 | `npm run teams:repair` | Dubbele/verkeerd gedateerde Teams-pagina's opschonen (dry run; `-- --apply`) |
 | `npm run kb:analyze` | Analyse vooraf: thema's en types voorstellen voor de vaste lijst |
 | `npm run kb:vocab` | Voorstel personen (uit de agenda) en organisaties (uit de analyse) |
+| `npm run kb:aliassen` | Schrijfvarianten van namen in de transcripten (`-- --toepassen` voegt ze toe) |
 | `npm run kb:enrich` | Kennisbank stap 1: gespreksbestanden maken (lokaal taalmodel) |
 | `npm run kb:index` | Kennisbank stap 2: INDEX.md + pagina's per persoon en onderwerp |
 | `npm run kb` | Beide kennisbankstappen |
