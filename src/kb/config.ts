@@ -10,6 +10,8 @@ export const kbConfig = {
   conversationsDir: path.join(dir, 'gesprekken'),
   personsDir: path.join(dir, 'personen'),
   topicsDir: path.join(dir, 'onderwerpen'),
+  organisationsDir: path.join(dir, 'organisaties'),
+  seriesDir: path.join(dir, 'reeksen'),
   adminDir: path.join(dir, '_beheer'),
   cacheDir: path.join(dir, '_beheer', 'cache'),
   vocabularyFile: path.join(dir, '_beheer', 'vocabulaire.yml'),

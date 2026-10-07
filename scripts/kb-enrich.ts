@@ -36,6 +36,7 @@ function writeCandidates(found: Map<string, { c: Candidate; spellings: Map<strin
   }));
   const persons = rows.filter(r => r.c.kind === 'persoon').sort((a, b) => b.conversations - a.conversations).slice(0, 200);
   const topics = rows.filter(r => r.c.kind === 'onderwerp').sort((a, b) => b.conversations - a.conversations).slice(0, 200);
+  const orgs = rows.filter(r => r.c.kind === 'organisatie').sort((a, b) => b.conversations - a.conversations).slice(0, 200);
   const md = [
     '# Kandidaten voor de vaste lijst',
     '',
@@ -53,13 +54,28 @@ function writeCandidates(found: Map<string, { c: Candidate; spellings: Map<strin
     topics.length ? '| Onderwerp | Gesprekken |\n|---|---:|' : '_Geen._',
     ...topics.map(r => `| ${r.name} | ${r.conversations} |`),
     '',
+    '## Organisaties',
+    '',
+    orgs.length ? '| Organisatie | Gesprekken |\n|---|---:|' : '_Geen._',
+    ...orgs.map(r => `| ${r.name} | ${r.conversations} |`),
+    '',
   ].join('\n');
   writeIfChanged(kbConfig.candidatesFile, md);
 }
 
 async function main(): Promise<void> {
   const vocab = loadVocabulary();
-  const sources = scanSources().filter(s => s.startMs >= SINCE);
+  const all = scanSources();
+  const sources = all.filter(s => s.startMs >= SINCE);
+
+  // Recurring series: same title (numbers stripped) at least twice in the whole archive.
+  const seriesKey = (title: string) => normalizeKey(title.replace(/\d+/g, ' '));
+  const groups = new Map<string, typeof all>();
+  for (const s of all) groups.set(seriesKey(s.title), [...(groups.get(seriesKey(s.title)) ?? []), s]);
+  const seriesOf = (title: string) => {
+    const g = groups.get(seriesKey(title));
+    return g && g.length >= 2 ? g[g.length - 1].title : undefined;
+  };
   const pending = sources.filter(s => FORCE || !cachedExtraction(s));
   log(`${sources.length} transcript(s) in ${kbConfig.sourceDir}`);
   log(`${pending.length} nog door het taalmodel (${kbConfig.llm.provider}: ${kbConfig.llm.model}), ${sources.length - pending.length} uit cache`);
@@ -118,7 +134,7 @@ async function main(): Promise<void> {
 
     const id = `g-${src.hash.slice(0, 10)}`;
     if (produced.has(id)) continue; // identical transcript twice in the archive
-    const conv = buildConversation(src, ex, vocab, existing.get(id)?.carry);
+    const conv = buildConversation(src, ex, vocab, existing.get(id)?.carry, seriesOf(src.title));
     let rel = conv.relPath;
     if (usedPaths.has(rel)) rel = withSuffix(rel, src.source === 'teams' ? 'Teams' : 'Plaud');
     for (let n = 2; usedPaths.has(rel); n++) rel = withSuffix(conv.relPath, String(n));

@@ -155,8 +155,10 @@ Kennisbank/
 ├── CLAUDE.md                 # hoe je de kennisbank bevraagt (voor Claude Code)
 ├── INDEX.md                  # startpunt: actiepunten, onderwerpen, personen, gesprekken per maand
 ├── gesprekken/2026-10/…md    # één gespreksbestand per transcript
-├── personen/…md              # per persoon uit de vaste lijst
-├── onderwerpen/…md           # per onderwerp uit de vaste lijst
+├── personen/…md              # per persoon; aparte sectie voor gesprekken óver die persoon
+├── onderwerpen/…md           # per hoofd- en subonderwerp
+├── organisaties/…md          # per klant, partner, leverancier
+├── reeksen/…md               # per terugkerende meeting, met tijdlijn
 └── _beheer/                  # vaste lijst, kandidaten en cache (geen onderdeel van de kennisbank)
 ```
 
@@ -218,26 +220,37 @@ na de sync automatisch. Daarvoor moet Ollama draaien.
 
 ### De vaste lijst (`_beheer/vocabulaire.yml`)
 
-Alleen personen en onderwerpen uit deze lijst komen in de kennisbank. Varianten (bijnamen, afkortingen,
-spraakherkenningsfouten) zet je als `aliassen` onder één `naam`, zodat ze worden samengevoegd. Na elke
-verrijking staat in `_beheer/kandidaten.md` wat het model wél vond maar wat nog niet op de lijst staat,
-met het aantal gesprekken. Neem over wat erin hoort en draai `npm run kb`; het model wordt daarvoor niet
-opnieuw aangeroepen.
+Alleen wat op deze lijst staat komt in de kennisbank. Varianten (bijnamen, afkortingen,
+spraakherkenningsfouten) zet je als `aliassen` onder één `naam`, zodat ze worden samengevoegd.
 
-```yaml
-personen:
-  - naam: Jan de Vries
-    aliassen: [Jan, J. de Vries]
-    organisatie: Zig
-    rol: Product owner
-onderwerpen:
-  - naam: Datamigratie
-    aliassen: [data migratie, migratie van klantdata]
-    omschrijving: Overzetten van klantdata naar het nieuwe platform
-types: [overleg, 1-op-1, klantgesprek, stuurgroep, workshop, presentatie, sollicitatie, overig]
+| Sectie | Wat |
+|---|---|
+| `eigenaar` | Jij. Gesprekken "over" iemand gaan nooit over jou. |
+| `personen` | Collega's (en eventueel externen) met aliassen, organisatie en rol |
+| `organisaties` | Klanten, partners, leveranciers (`soort`), met een eigen pagina |
+| `onderwerpen` | Hoofdonderwerpen met `sub:`-onderwerpen. Het model kiest het meest specifieke; het hoofdonderwerp volgt daaruit. |
+| `types` | Gesprekstypes in volgorde van voorrang, met `omschrijving` en optioneel `titel`-woorden. Staat zo'n woord in de meetingtitel, dan ligt het type vast. `over_persoon: true` legt vast over wie het gesprek gaat (titel eerst: "MBR Jan & …" → Jan). |
+
+Gesprekken met dezelfde titel krijgen automatisch een `reeks` en een eigen pagina met tijdlijn.
+
+**Een eerste versie maken** zonder alles over te typen:
+
+```bash
+npm run kb:analyze                  # thema's en types per gesprek (lokaal model, ±20 s per gesprek)
+npm run kb:vocab                    # voorstel voor personen en organisaties → _beheer/vocabulaire.voorstel.yml
+npm run kb:vocab -- --volledig      # idem, ook voor namen die al op de lijst staan
 ```
 
-De lijst staat in je kennisbankmap, niet in deze repository: hij bevat namen van collega's.
+`kb:vocab` haalt personen uit de agenda-uitnodigingen van je opgenomen gesprekken (alleen meetings met
+hoogstens 15 deelnemers, minimaal 2 gesprekken). Collega's met je eigen e-maildomein staan aan,
+externen staan uitgecommentarieerd. Een gedeelde voornaam wordt alleen alias als de agenda uitwijst wie er
+bij de 1-op-1's met die naam in de titel zat. Organisaties komen uit de analyse (minimaal 3 gesprekken);
+vul zelf `soort` in.
+
+Na elke verrijking staat in `_beheer/kandidaten.md` wat het model nog meer vond, met het aantal gesprekken.
+Neem over wat erin hoort en draai `npm run kb`; het model wordt daarvoor niet opnieuw aangeroepen.
+
+De lijst staat in je kennisbankmap, niet in deze repository: hij bevat namen.
 
 ### Bevragen
 
@@ -466,6 +479,7 @@ scripts/
 ├── dump-transcripts.ts     # backfill van markdown-files voor al gesynchroniseerde opnames
 ├── download-audio.ts       # MP3-export naar lokale map (idempotent)
 ├── kb-analyze.ts           # kennisbank: analyse voor de inrichting van de vaste lijst
+├── kb-vocab.ts             # kennisbank: voorstel personen en organisaties voor de vaste lijst
 ├── kb-enrich.ts            # kennisbank stap 1: verrijken
 ├── kb-index.ts             # kennisbank stap 2: indexeren
 └── run-sync.sh             # launchd wrapper (laadt nvm; KB_AUTO=on → ook kennisbank)
@@ -496,6 +510,7 @@ uninstall.sh                   # launchd unload + state cleanup
 | `npm run teams:debug` | Teams-transcripts in de laatste 30 dagen + meetings zonder toegang |
 | `npm run teams:repair` | Dubbele/verkeerd gedateerde Teams-pagina's opschonen (dry run; `-- --apply`) |
 | `npm run kb:analyze` | Analyse vooraf: thema's en types voorstellen voor de vaste lijst |
+| `npm run kb:vocab` | Voorstel personen (uit de agenda) en organisaties (uit de analyse) |
 | `npm run kb:enrich` | Kennisbank stap 1: gespreksbestanden maken (lokaal taalmodel) |
 | `npm run kb:index` | Kennisbank stap 2: INDEX.md + pagina's per persoon en onderwerp |
 | `npm run kb` | Beide kennisbankstappen |

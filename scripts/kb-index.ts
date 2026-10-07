@@ -29,7 +29,7 @@ function main(): void {
   const vocab = loadVocabulary();
   const r = buildIndex(vocab);
   const claude = installClaudeMd();
-  console.log(`Index: ${r.conversations} gesprekken, ${r.persons} personen, ${r.topics} onderwerpen — ${r.written} pagina('s) bijgewerkt, ${r.removed} verwijderd; ${claude}.`);
+  console.log(`Index: ${r.conversations} gesprekken, ${r.topics} onderwerpen, ${r.organisations} organisaties, ${r.persons} personen, ${r.series} reeksen — ${r.written} pagina('s) bijgewerkt, ${r.removed} verwijderd; ${claude}.`);
   console.log(`Kennisbank: ${kbConfig.dir}`);
 }
 

@@ -8,9 +8,9 @@ import type { SourceTranscript } from './sources.js';
 
 export interface Candidate {
   name: string;
-  kind: 'persoon' | 'onderwerp';
+  kind: 'persoon' | 'onderwerp' | 'organisatie';
   /** Where the name came from: spoken in a Teams transcript, or mentioned. */
-  origin: 'spreker' | 'genoemd' | 'onderwerp';
+  origin: 'spreker' | 'genoemd' | 'onderwerp' | 'organisatie';
 }
 
 export interface Conversation {
@@ -91,7 +91,10 @@ function yamlFrontmatter(data: Record<string, unknown>): string {
 
 const link = (dir: string, name: string) => `[${name}](../../${dir}/${slugify(name)}.md)`;
 
-export function buildConversation(src: SourceTranscript, ex: Extraction, vocab: Vocabulary, carry?: CarryOver): Conversation {
+/**
+ * @param series Raw title of the recurring series this conversation belongs to, if any.
+ */
+export function buildConversation(src: SourceTranscript, ex: Extraction, vocab: Vocabulary, carry?: CarryOver, series?: string): Conversation {
   const candidates: Candidate[] = [];
   const persons = new Set<string>();
   const unlisted: string[] = [];
@@ -106,11 +109,41 @@ export function buildConversation(src: SourceTranscript, ex: Extraction, vocab: 
   for (const s of src.speakers) consider(s, 'spreker');
   for (const p of [...ex.personen, ...ex.overige_personen]) consider(p, 'genoemd');
 
+  // Topics: the most specific match; its main topic follows from the vocabulary.
   const topics = new Set<string>();
+  const mainTopics = new Set<string>();
   for (const t of ex.onderwerpen) {
     const hit = vocab.matchTopic(t);
-    if (hit) topics.add(hit.naam);
-    else candidates.push({ name: t, kind: 'onderwerp', origin: 'onderwerp' });
+    if (hit) {
+      topics.add(hit.naam);
+      mainTopics.add(hit.parent ?? hit.naam);
+    } else candidates.push({ name: t, kind: 'onderwerp', origin: 'onderwerp' });
+  }
+  // A main topic is redundant when one of its sub-topics is already there.
+  for (const t of [...topics]) if (mainTopics.has(t) && vocab.topics.some(x => x.parent === t && topics.has(x.naam))) topics.delete(t);
+
+  const organisations = new Set<string>();
+  for (const o of ex.organisaties) {
+    const hit = vocab.matchOrganisation(o);
+    if (hit) organisations.add(hit.naam);
+    else candidates.push({ name: o, kind: 'organisatie', origin: 'organisatie' });
+  }
+
+  // Type: a title pattern wins over the model's choice.
+  const typeDef = vocab.typeFromTitle(src.title) ?? vocab.typeDefs.find(d => d.naam === ex.type);
+  const type = typeDef?.naam ?? 'overig';
+
+  // "About": for 1-op-1's etc. Title first (MBR Jan & …), then the model, then the only other person.
+  let about: string | undefined;
+  if (typeDef?.overPersoon) {
+    const notOwner = (p?: { naam: string }) => p && p.naam !== vocab.owner?.naam;
+    const inTitle = vocab.personsIn(src.title).filter(notOwner);
+    const fromModel = ex.over_persoon ? vocab.matchPerson(ex.over_persoon) : undefined;
+    const others = [...persons].filter(p => p !== vocab.owner?.naam);
+    about = inTitle.length === 1 ? inTitle[0].naam
+      : notOwner(fromModel) ? fromModel!.naam
+      : others.length === 1 ? others[0] : undefined;
+    if (about) persons.add(about);
   }
 
   const blank = unlistedVariants(unlisted, vocab);
@@ -119,6 +152,9 @@ export function buildConversation(src: SourceTranscript, ex: Extraction, vocab: 
   const title = clean(src.title);
   const personList = [...persons].sort((a, b) => a.localeCompare(b, 'nl'));
   const topicList = [...topics].sort((a, b) => a.localeCompare(b, 'nl'));
+  const mainList = [...mainTopics].sort((a, b) => a.localeCompare(b, 'nl'));
+  const orgList = [...organisations].sort((a, b) => a.localeCompare(b, 'nl'));
+  const seriesName = series ? clean(series) : undefined;
   const id = `g-${src.hash.slice(0, 10)}`;
 
   const frontmatter = {
@@ -127,9 +163,13 @@ export function buildConversation(src: SourceTranscript, ex: Extraction, vocab: 
     datum: when.date,
     tijd: when.time,
     duur_min: src.durationMin,
-    type: ex.type,
+    type,
+    ...(seriesName ? { reeks: seriesName } : {}),
+    ...(about ? { over: about } : {}),
     personen: personList,
+    hoofdonderwerpen: mainList,
     onderwerpen: topicList,
+    organisaties: orgList,
     bron: src.source,
     bronbestand: src.relPath,
     gegenereerd: `${GENERATED_MARKER} (kb:enrich)`,
@@ -148,10 +188,16 @@ export function buildConversation(src: SourceTranscript, ex: Extraction, vocab: 
   const body = [
     `# ${title}`,
     '',
-    `${when.long} om ${when.time} · ${src.durationMin} min · ${ex.type} · bron: ${src.source === 'teams' ? 'Teams' : 'Plaud'}`,
+    `${when.long} om ${when.time} · ${src.durationMin} min · ${type} · bron: ${src.source === 'teams' ? 'Teams' : 'Plaud'}`,
     '',
+    ...(about ? [`**Over:** ${link('personen', about)}  `] : []),
+    ...(seriesName ? [`**Reeks:** ${link('reeksen', seriesName)}  `] : []),
     `**Personen:** ${personList.length ? personList.map(p => link('personen', p)).join(', ') : '—'}  `,
-    `**Onderwerpen:** ${topicList.length ? topicList.map(t => link('onderwerpen', t)).join(', ') : '—'}`,
+    `**Onderwerpen:** ${topicList.length ? topicList.map(t => {
+      const parent = vocab.matchTopic(t)?.parent;
+      return parent ? `${link('onderwerpen', t)} (${parent})` : link('onderwerpen', t);
+    }).join(', ') : '—'}  `,
+    `**Organisaties:** ${orgList.length ? orgList.map(o => link('organisaties', o)).join(', ') : '—'}`,
     '',
     '## Samenvatting',
     '',

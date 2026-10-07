@@ -1,28 +1,83 @@
 # Vaste lijst voor de kennisbank.
 #
-# Alleen personen en onderwerpen uit deze lijst komen in de gespreksbestanden,
-# op INDEX.md en krijgen een eigen pagina. Varianten (bijnamen, spelfouten van de
-# spraakherkenning, afkortingen) zet je onder `aliassen`; die worden samengevoegd
-# tot `naam`.
+# Alleen personen, onderwerpen en organisaties uit deze lijst komen in de
+# gespreksbestanden, op INDEX.md en krijgen een eigen pagina. Varianten
+# (bijnamen, afkortingen, spraakherkenningsfouten) zet je onder `aliassen`;
+# die worden samengevoegd tot `naam`.
 #
-# Namen die niet in deze lijst staan worden in samenvattingen vervangen door
-# "[naam]" en verschijnen niet in de kennisbank — zo blijven klantcontacten
-# en andere externe personen er standaard uit. Nieuwe kandidaten (met aantallen)
-# vind je na elke `npm run kb:enrich` in _beheer/kandidaten.md.
+# Namen van personen die niet in de lijst staan, worden in samenvattingen
+# vervangen door "[naam]". Kandidaten (met aantallen) staan na elke
+# `npm run kb:enrich` in _beheer/kandidaten.md.
 #
-# Na het aanpassen van deze lijst: `npm run kb` (de LLM wordt niet opnieuw
-# aangeroepen; bestaande extracties worden alleen opnieuw gekoppeld).
+# Na het aanpassen: `npm run kb`. Het taalmodel wordt daarvoor niet opnieuw
+# aangeroepen; bestaande extracties worden alleen opnieuw gekoppeld.
+
+# Jij: gesprekken "over" iemand (1-op-1's e.d.) gaan nooit over de eigenaar.
+eigenaar: Jan Jansen
 
 personen: []
 #  - naam: Jan Jansen
-#    aliassen: [Jan, J. Jansen, Jansen]
-#    organisatie: Zig
+#    aliassen: [Jan, J. Jansen]
+#    organisatie: Voorbeeld BV
 #    rol: Product owner
 
-onderwerpen: []
-#  - naam: Datamigratie
-#    aliassen: [data migratie, migratie van klantdata]
-#    omschrijving: Overzetten van klantdata naar het nieuwe platform
+# Klanten, partners en leveranciers (eigen pagina's, los van de onderwerpen).
+organisaties: []
+#  - naam: Woonstichting Voorbeeld
+#    soort: klant          # klant | partner | leverancier | groep
+#    aliassen: [WSV]
 
-# Gesprekstypes waaruit de LLM kiest. `overig` wordt altijd toegevoegd.
-types: [overleg, 1-op-1, klantgesprek, stuurgroep, workshop, presentatie, sollicitatie, overig]
+# Hoofdonderwerpen met subonderwerpen. Het model kiest het meest specifieke
+# onderwerp; het hoofdonderwerp wordt daaruit afgeleid. Een omschrijving helpt
+# het model om vergelijkbare termen uit elkaar te houden.
+onderwerpen: []
+#  - naam: Technologie
+#    omschrijving: Techniek en architectuur, los van een specifiek product
+#    sub:
+#      - naam: Data en datamigratie
+#        aliassen: [datamigratie, datakwaliteit]
+#        omschrijving: Overzetten en kwaliteit van data
+
+# Gesprekstypes, in volgorde van voorrang. Komt een woord uit `titel` voor in de
+# titel van de meeting, dan ligt het type vast; anders kiest het model op basis
+# van de omschrijving. `over_persoon: true` legt vast over wie het gesprek gaat.
+types:
+  - naam: workshop
+    omschrijving: Werksessie, kennissessie, training of teamdag (ook een sessie óver ontwikkelgesprekken)
+    titel: [workshop, sessie, kennissessie, managersessie, training, teamdag, MT-dag, ontwikkeldag]
+  - naam: ontwikkelgesprek
+    omschrijving: Mid-year review, functionerings- of ontwikkelgesprek met één medewerker
+    titel: [mid year review, mid-year review, ontwikkelgesprek, functioneringsgesprek, beoordelingsgesprek]
+    over_persoon: true
+  - naam: sollicitatie
+    omschrijving: Gesprek met een kandidaat voor een vacature
+    titel: [sollicitatie, sollicitatiegesprek, kandidaat]
+    over_persoon: true
+  - naam: teamoverleg
+    omschrijving: Update of afstemming met een team (meer dan twee personen)
+    titel: [monthly sync, weekly, team]
+  - naam: 1-op-1
+    omschrijving: Tweegesprek met een direct report of collega
+    titel: [MBR, "1:1", 1-op-1, one-on-one, sync]
+    over_persoon: true
+  - naam: stuurgroep
+    omschrijving: Besluitvormend gremium, ook RvC en board
+    titel: [stuurgroep, RvC, board]
+  - naam: MT-overleg
+    omschrijving: Managementteam of directie
+    titel: [MT, DT, directieoverleg]
+  - naam: demo
+    omschrijving: Een product of oplossing laten zien
+    titel: [demo]
+  - naam: klantgesprek
+    omschrijving: Met een klant, zoals een review, fit-gap, implementatie of verkoop
+    titel: [customer, klant, fit-gap]
+  - naam: strategiesessie
+    omschrijving: Strategie en richting, ook internationaal
+    titel: [strategy, strategie, exco]
+  - naam: kennismaking
+    omschrijving: Eerste kennismaking
+    titel: [kennismaking, introductie]
+  - naam: overleg
+    omschrijving: Ander zakelijk overleg
+  - naam: overig

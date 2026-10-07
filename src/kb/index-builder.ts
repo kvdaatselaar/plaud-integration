@@ -19,8 +19,12 @@ export interface IndexedConversation {
   datum: string;
   tijd: string;
   type: string;
+  reeks?: string;
+  over?: string;
   personen: string[];
+  hoofdonderwerpen: string[];
   onderwerpen: string[];
+  organisaties: string[];
   besluiten: string[];
   acties: Action[];
   vragen: string[];
@@ -54,8 +58,12 @@ export function loadConversations(): IndexedConversation[] {
       datum: String(m.datum ?? ''),
       tijd: String(m.tijd ?? ''),
       type: String(m.type ?? 'overig'),
+      reeks: m.reeks ? String(m.reeks) : undefined,
+      over: m.over ? String(m.over) : undefined,
       personen: list(m.personen),
+      hoofdonderwerpen: list(m.hoofdonderwerpen),
       onderwerpen: list(m.onderwerpen),
+      organisaties: list(m.organisaties),
       besluiten: bulletItems(s.get('Besluiten')),
       vragen: bulletItems(s.get('Open vragen')),
       acties: (s.get('Actiepunten') ?? '').split('\n').flatMap(line => {
@@ -70,8 +78,11 @@ export function loadConversations(): IndexedConversation[] {
 const cell = (s: string) => s.replace(/\|/g, '\\|');
 /** Angle-bracket destinations keep paths with spaces readable (CommonMark). */
 const convLink = (c: IndexedConversation, prefix: string) => `[${c.titel}](<${prefix}${c.rel}>)`;
-const personLink = (name: string, prefix: string) => `[${name}](${prefix}personen/${slugify(name)}.md)`;
-const topicLink = (name: string, prefix: string) => `[${name}](${prefix}onderwerpen/${slugify(name)}.md)`;
+const pageLink = (dir: string) => (name: string, prefix: string) => `[${name}](${prefix}${dir}/${slugify(name)}.md)`;
+const personLink = pageLink('personen');
+const topicLink = pageLink('onderwerpen');
+const orgLink = pageLink('organisaties');
+const seriesLink = pageLink('reeksen');
 
 function countBy(items: string[]): [string, number][] {
   const m = new Map<string, number>();
@@ -79,11 +90,18 @@ function countBy(items: string[]): [string, number][] {
   return [...m].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'nl'));
 }
 
+function groupBy(convs: IndexedConversation[], keys: (c: IndexedConversation) => string[]): Map<string, IndexedConversation[]> {
+  const out = new Map<string, IndexedConversation[]>();
+  for (const c of convs) for (const k of keys(c)) out.set(k, [...(out.get(k) ?? []), c]);
+  return out;
+}
+
 function actionLine(a: Action, c: IndexedConversation, prefix: string): string {
   return `- [ ] ${a.owner ? `**${a.owner}:** ` : ''}${a.text} — ${convLink(c, prefix)} (${c.datum})`;
 }
 
 function conversationTable(convs: IndexedConversation[], prefix: string): string[] {
+  if (convs.length === 0) return ['_Geen._'];
   return [
     '| Datum | Gesprek | Type | Onderwerpen |',
     '|---|---|---|---|',
@@ -95,6 +113,10 @@ function span(convs: IndexedConversation[]): string {
   return `**Gesprekken:** ${convs.length} · eerste ${convs[convs.length - 1].datum}, laatste ${convs[0].datum}`;
 }
 
+const listOrNone = (items: string[], max = Infinity) => (items.length ? items.slice(0, max) : ['_Geen._']);
+const counted = (pairs: [string, number][], link: (n: string, p: string) => string, max: number) =>
+  listOrNone(pairs.slice(0, max).map(([n, k]) => `- ${link(n, '../')} (${k})`));
+
 function personPage(name: string, convs: IndexedConversation[], vocab: Vocabulary): string {
   const v = vocab.matchPerson(name);
   const facts = [
@@ -102,6 +124,8 @@ function personPage(name: string, convs: IndexedConversation[], vocab: Vocabular
     v?.rol && `**Rol:** ${v.rol}`,
     v?.aliassen.length && `**Ook bekend als:** ${v.aliassen.join(', ')}`,
   ].filter(Boolean).join(' · ');
+  const about = convs.filter(c => c.over === name);
+  const other = convs.filter(c => c.over !== name);
   const open = convs.flatMap(c => c.acties.filter(a => !a.done && a.owner === name).map(a => actionLine(a, c, '../')));
   return [
     PAGE_MARKER,
@@ -112,26 +136,38 @@ function personPage(name: string, convs: IndexedConversation[], vocab: Vocabular
     '',
     '## Openstaande actiepunten',
     '',
-    ...(open.length ? open : ['_Geen._']),
+    ...listOrNone(open),
     '',
-    '## Gesprekken',
+    `## Gesprekken over ${name}`,
     '',
-    ...conversationTable(convs, '../'),
+    '_1-op-1\'s, ontwikkelgesprekken en andere gesprekken die over deze persoon gaan._',
+    '',
+    ...conversationTable(about, '../'),
+    '',
+    '## Andere gesprekken',
+    '',
+    ...conversationTable(other, '../'),
     '',
     '## Onderwerpen',
     '',
-    ...countBy(convs.flatMap(c => c.onderwerpen)).map(([t, n]) => `- ${topicLink(t, '../')} (${n})`),
+    ...counted(countBy(convs.flatMap(c => c.onderwerpen)), topicLink, 30),
     '',
     '## Vaak samen met',
     '',
-    ...countBy(convs.flatMap(c => c.personen.filter(p => p !== name))).slice(0, 15).map(([p, n]) => `- ${personLink(p, '../')} (${n})`),
+    ...counted(countBy(convs.flatMap(c => c.personen.filter(p => p !== name))), personLink, 15),
     '',
   ].join('\n');
 }
 
 function topicPage(name: string, convs: IndexedConversation[], vocab: Vocabulary): string {
   const v = vocab.matchTopic(name);
-  const facts = [v?.omschrijving, v?.aliassen.length && `**Ook bekend als:** ${v.aliassen.join(', ')}`].filter(Boolean).join(' · ');
+  const subs = vocab.topics.filter(t => t.parent === name);
+  const facts = [
+    v?.parent && `**Onderdeel van:** ${topicLink(v.parent, '../')}`,
+    v?.omschrijving,
+    v?.aliassen.length && `**Ook bekend als:** ${v.aliassen.join(', ')}`,
+  ].filter(Boolean).join(' · ');
+  const subCounts = subs.map(s => [s.naam, convs.filter(c => c.onderwerpen.includes(s.naam)).length] as [string, number]);
   const decisions = convs.flatMap(c => c.besluiten.map(b => `- ${c.datum} · ${b} — ${convLink(c, '../')}`));
   const questions = convs.flatMap(c => c.vragen.map(q => `- ${c.datum} · ${q} — ${convLink(c, '../')}`));
   const open = convs.flatMap(c => c.acties.filter(a => !a.done).map(a => actionLine(a, c, '../')));
@@ -142,64 +178,155 @@ function topicPage(name: string, convs: IndexedConversation[], vocab: Vocabulary
     ...(facts ? [`${facts}  `] : []),
     span(convs),
     '',
+    ...(subs.length ? ['## Subonderwerpen', '', ...subCounts.map(([n, k]) => `- ${topicLink(n, '../')} (${k})`), ''] : []),
     '## Besluiten',
     '',
     '_Uit gesprekken over dit onderwerp, nieuwste eerst._',
     '',
-    ...(decisions.length ? decisions.slice(0, 60) : ['_Geen._']),
+    ...listOrNone(decisions, 60),
     '',
     '## Open vragen',
     '',
-    ...(questions.length ? questions.slice(0, 40) : ['_Geen._']),
+    ...listOrNone(questions, 40),
     '',
     '## Openstaande actiepunten',
     '',
-    ...(open.length ? open.slice(0, 40) : ['_Geen._']),
+    ...listOrNone(open, 40),
     '',
     '## Gesprekken',
     '',
     ...conversationTable(convs, '../'),
     '',
+    '## Organisaties',
+    '',
+    ...counted(countBy(convs.flatMap(c => c.organisaties)), orgLink, 20),
+    '',
     '## Betrokken personen',
     '',
-    ...countBy(convs.flatMap(c => c.personen)).slice(0, 20).map(([p, n]) => `- ${personLink(p, '../')} (${n})`),
-    '',
-    '## Verwante onderwerpen',
-    '',
-    ...countBy(convs.flatMap(c => c.onderwerpen.filter(t => t !== name))).slice(0, 15).map(([t, n]) => `- ${topicLink(t, '../')} (${n})`),
+    ...counted(countBy(convs.flatMap(c => c.personen)), personLink, 20),
     '',
   ].join('\n');
 }
 
-function indexPage(convs: IndexedConversation[], byPerson: Map<string, IndexedConversation[]>, byTopic: Map<string, IndexedConversation[]>, vocab: Vocabulary): string {
+function organisationPage(name: string, convs: IndexedConversation[], vocab: Vocabulary): string {
+  const v = vocab.matchOrganisation(name);
+  const facts = [v?.soort && `**Soort:** ${v.soort}`, v?.aliassen.length && `**Ook bekend als:** ${v.aliassen.join(', ')}`]
+    .filter(Boolean).join(' · ');
+  const open = convs.flatMap(c => c.acties.filter(a => !a.done).map(a => actionLine(a, c, '../')));
+  const decisions = convs.flatMap(c => c.besluiten.map(b => `- ${c.datum} · ${b} — ${convLink(c, '../')}`));
+  return [
+    PAGE_MARKER,
+    `# ${name}`,
+    '',
+    ...(facts ? [`${facts}  `] : []),
+    span(convs),
+    '',
+    '## Besluiten',
+    '',
+    ...listOrNone(decisions, 40),
+    '',
+    '## Openstaande actiepunten',
+    '',
+    ...listOrNone(open, 40),
+    '',
+    '## Gesprekken',
+    '',
+    ...conversationTable(convs, '../'),
+    '',
+    '## Onderwerpen',
+    '',
+    ...counted(countBy(convs.flatMap(c => c.onderwerpen)), topicLink, 20),
+    '',
+    '## Betrokken personen',
+    '',
+    ...counted(countBy(convs.flatMap(c => c.personen)), personLink, 20),
+    '',
+  ].join('\n');
+}
+
+function seriesPage(name: string, convs: IndexedConversation[]): string {
+  const open = convs.flatMap(c => c.acties.filter(a => !a.done).map(a => actionLine(a, c, '../')));
+  const about = [...new Set(convs.map(c => c.over).filter((x): x is string => !!x))];
+  return [
+    PAGE_MARKER,
+    `# Reeks: ${name}`,
+    '',
+    ...(about.length ? [`**Over:** ${about.map(p => personLink(p, '../')).join(', ')}  `] : []),
+    span(convs),
+    '',
+    '## Openstaande actiepunten',
+    '',
+    ...listOrNone(open, 40),
+    '',
+    '## Tijdlijn (nieuwste eerst)',
+    '',
+    ...convs.flatMap(c => [
+      `### ${c.datum} — ${convLink(c, '../')}`,
+      '',
+      ...(c.besluiten.length ? c.besluiten.map(b => `- Besluit: ${b}`) : ['- _Geen besluiten._']),
+      '',
+    ]),
+  ].join('\n');
+}
+
+function indexPage(
+  convs: IndexedConversation[],
+  pages: { persons: Map<string, IndexedConversation[]>; topics: Map<string, IndexedConversation[]>; orgs: Map<string, IndexedConversation[]>; series: Map<string, IndexedConversation[]> },
+  vocab: Vocabulary,
+): string {
   const cutoff = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
   const recentOpen = convs.filter(c => c.datum >= cutoff).flatMap(c => c.acties.filter(a => !a.done).map(a => actionLine(a, c, '')));
-  const byMonth = new Map<string, IndexedConversation[]>();
-  for (const c of convs) byMonth.set(c.datum.slice(0, 7), [...(byMonth.get(c.datum.slice(0, 7)) ?? []), c]);
+  const byMonth = groupBy(convs, c => [c.datum.slice(0, 7)]);
   const range = convs.length ? `${convs[convs.length - 1].datum} – ${convs[0].datum}` : '—';
+  const count = (m: Map<string, IndexedConversation[]>, k: string) => m.get(k)?.length ?? 0;
+  const last = (m: Map<string, IndexedConversation[]>, k: string) => m.get(k)?.[0]?.datum ?? '—';
+
+  // Main topics in vocabulary order, with their used sub-topics; then topics outside the hierarchy.
+  const mains = vocab.topics.filter(t => !t.parent && pages.topics.has(t.naam));
+  const known = new Set(vocab.topics.map(t => t.naam));
+  const topicLines = [
+    ...mains.flatMap(m => [
+      `- ${topicLink(m.naam, '')} (${count(pages.topics, m.naam)}, laatst ${last(pages.topics, m.naam)})`,
+      ...vocab.topics.filter(t => t.parent === m.naam && pages.topics.has(t.naam))
+        .map(t => `  - ${topicLink(t.naam, '')} (${count(pages.topics, t.naam)})`),
+    ]),
+    ...[...pages.topics.keys()].filter(t => !known.has(t)).map(t => `- ${topicLink(t, '')} (${count(pages.topics, t)})`),
+  ];
+
   return [
     PAGE_MARKER,
     '# Kennisbank gesprekken',
     '',
-    `_Bijgewerkt ${new Date().toISOString().slice(0, 10)} · ${convs.length} gesprekken (${range}) · ${byTopic.size} onderwerpen · ${byPerson.size} personen_`,
+    `_Bijgewerkt ${new Date().toISOString().slice(0, 10)} · ${convs.length} gesprekken (${range}) · ${pages.topics.size} onderwerpen · ${pages.orgs.size} organisaties · ${pages.persons.size} personen · ${pages.series.size} reeksen_`,
     '',
     'Hoe je deze kennisbank bevraagt staat in [CLAUDE.md](CLAUDE.md).',
     '',
     '## Openstaande actiepunten (laatste 30 dagen)',
     '',
-    ...(recentOpen.length ? recentOpen.slice(0, 50) : ['_Geen._']),
+    ...listOrNone(recentOpen, 50),
     '',
     '## Onderwerpen',
     '',
-    '| Onderwerp | Gesprekken | Laatst |',
-    '|---|---:|---|',
-    ...[...byTopic].sort((a, b) => b[1].length - a[1].length).map(([t, cs]) => `| ${cell(topicLink(t, ''))} | ${cs.length} | ${cs[0].datum} |`),
+    ...listOrNone(topicLines),
+    '',
+    '## Organisaties',
+    '',
+    '| Organisatie | Soort | Gesprekken | Laatst |',
+    '|---|---|---:|---|',
+    ...[...pages.orgs].sort((a, b) => b[1].length - a[1].length)
+      .map(([o, cs]) => `| ${cell(orgLink(o, ''))} | ${vocab.matchOrganisation(o)?.soort ?? ''} | ${cs.length} | ${cs[0].datum} |`),
     '',
     '## Personen',
     '',
-    '| Persoon | Organisatie | Gesprekken | Laatst |',
-    '|---|---|---:|---|',
-    ...[...byPerson].sort((a, b) => b[1].length - a[1].length).map(([p, cs]) => `| ${cell(personLink(p, ''))} | ${cell(vocab.matchPerson(p)?.organisatie ?? '')} | ${cs.length} | ${cs[0].datum} |`),
+    '| Persoon | Organisatie | Gesprekken | Waarvan over | Laatst |',
+    '|---|---|---:|---:|---|',
+    ...[...pages.persons].sort((a, b) => b[1].length - a[1].length)
+      .map(([p, cs]) => `| ${cell(personLink(p, ''))} | ${cell(vocab.matchPerson(p)?.organisatie ?? '')} | ${cs.length} | ${cs.filter(c => c.over === p).length} | ${cs[0].datum} |`),
+    '',
+    '## Reeksen',
+    '',
+    ...listOrNone([...pages.series].sort((a, b) => b[1].length - a[1].length)
+      .map(([s, cs]) => `- ${seriesLink(s, '')} (${cs.length}×, laatst ${cs[0].datum})`)),
     '',
     '## Gesprekken per maand',
     '',
@@ -230,24 +357,34 @@ function syncDir(dir: string, pages: Map<string, string>): { written: number; re
   return { written, removed };
 }
 
-export function buildIndex(vocab: Vocabulary): { conversations: number; persons: number; topics: number; written: number; removed: number } {
-  const convs = loadConversations();
-  const byPerson = new Map<string, IndexedConversation[]>();
-  const byTopic = new Map<string, IndexedConversation[]>();
-  for (const c of convs) {
-    for (const p of c.personen) byPerson.set(p, [...(byPerson.get(p) ?? []), c]);
-    for (const t of c.onderwerpen) byTopic.set(t, [...(byTopic.get(t) ?? []), c]);
-  }
+const pageFiles = <T>(m: Map<string, T>, render: (name: string, v: T) => string) =>
+  new Map([...m].map(([name, v]) => [`${slugify(name)}.md`, render(name, v)]));
 
-  const persons = syncDir(kbConfig.personsDir, new Map([...byPerson].map(([p, cs]) => [`${slugify(p)}.md`, personPage(p, cs, vocab)])));
-  const topics = syncDir(kbConfig.topicsDir, new Map([...byTopic].map(([t, cs]) => [`${slugify(t)}.md`, topicPage(t, cs, vocab)])));
-  const index = writeIfChanged(path.join(kbConfig.dir, 'INDEX.md'), indexPage(convs, byPerson, byTopic, vocab)) ? 1 : 0;
+export function buildIndex(vocab: Vocabulary): { conversations: number; persons: number; topics: number; organisations: number; series: number; written: number; removed: number } {
+  const convs = loadConversations();
+  const pages = {
+    persons: groupBy(convs, c => c.personen),
+    // A main-topic page covers all its sub-topics.
+    topics: groupBy(convs, c => [...new Set([...c.onderwerpen, ...c.hoofdonderwerpen])]),
+    orgs: groupBy(convs, c => c.organisaties),
+    series: groupBy(convs, c => (c.reeks ? [c.reeks] : [])),
+  };
+
+  const results = [
+    syncDir(kbConfig.personsDir, pageFiles(pages.persons, (n, cs) => personPage(n, cs, vocab))),
+    syncDir(kbConfig.topicsDir, pageFiles(pages.topics, (n, cs) => topicPage(n, cs, vocab))),
+    syncDir(kbConfig.organisationsDir, pageFiles(pages.orgs, (n, cs) => organisationPage(n, cs, vocab))),
+    syncDir(kbConfig.seriesDir, pageFiles(pages.series, (n, cs) => seriesPage(n, cs))),
+  ];
+  const index = writeIfChanged(path.join(kbConfig.dir, 'INDEX.md'), indexPage(convs, pages, vocab)) ? 1 : 0;
 
   return {
     conversations: convs.length,
-    persons: byPerson.size,
-    topics: byTopic.size,
-    written: persons.written + topics.written + index,
-    removed: persons.removed + topics.removed,
+    persons: pages.persons.size,
+    topics: pages.topics.size,
+    organisations: pages.orgs.size,
+    series: pages.series.size,
+    written: results.reduce((n, r) => n + r.written, 0) + index,
+    removed: results.reduce((n, r) => n + r.removed, 0),
   };
 }

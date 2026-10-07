@@ -2,17 +2,19 @@
 # Kennisbank gesprekken: instructies voor Claude
 
 Deze map is een kennisbank van zakelijke gesprekken van Zig: Plaud-opnames en Teams-meetings. Elk
-gesprek is door een lokaal taalmodel samengevat in een gespreksbestand. De overzichten per persoon en
-per onderwerp worden daaruit gegenereerd.
+gesprek is door een lokaal taalmodel samengevat in een gespreksbestand. De overzichten per persoon,
+onderwerp, organisatie en terugkerende reeks worden daaruit gegenereerd.
 
 ## Structuur
 
 | Pad | Inhoud |
 |---|---|
-| `INDEX.md` | Startpunt: openstaande actiepunten, alle onderwerpen en personen, gesprekken per maand |
+| `INDEX.md` | Startpunt: openstaande actiepunten, onderwerpen (hoofd › sub), organisaties, personen, reeksen, gesprekken per maand |
 | `gesprekken/JJJJ-MM/*.md` | Eén bestand per gesprek |
-| `personen/*.md` | Per persoon: gesprekken, openstaande actiepunten, onderwerpen, met wie vaak samen |
-| `onderwerpen/*.md` | Per onderwerp: besluiten, open vragen, actiepunten, gesprekken, betrokkenen |
+| `personen/*.md` | Per persoon: gesprekken **over** die persoon (1-op-1's, ontwikkelgesprekken), andere gesprekken, open acties |
+| `onderwerpen/*.md` | Per onderwerp: besluiten, open vragen, actiepunten, gesprekken; een hoofdonderwerp omvat zijn subonderwerpen |
+| `organisaties/*.md` | Per klant, partner of leverancier: besluiten, actiepunten, gesprekken |
+| `reeksen/*.md` | Per terugkerende meeting (bv. een maandelijkse MBR): tijdlijn met besluiten |
 | `_beheer/` | Beheer (vaste lijst, cache, kandidaten). **Niet lezen.** |
 
 Een gespreksbestand begint met YAML-metadata:
@@ -23,10 +25,16 @@ titel: Kwartaaloverleg productroadmap
 datum: 2026-10-05       # lokale tijd (Europe/Amsterdam)
 tijd: "12:00"
 duur_min: 90
-type: overleg           # overleg | 1-op-1 | klantgesprek | stuurgroep | workshop | presentatie | sollicitatie | overig
+type: 1-op-1            # zie "Gesprekstypes" hieronder
+reeks: MBR …            # alleen bij terugkerende meetings
+over: …                 # alleen bij 1-op-1, ontwikkelgesprek, sollicitatie: over wie het gesprek gaat
 personen:               # canonieke namen uit de vaste lijst
   - …
-onderwerpen:            # canonieke onderwerpen uit de vaste lijst
+hoofdonderwerpen:       # bv. een productdomein of thema
+  - …
+onderwerpen:            # het meest specifieke (sub)onderwerp
+  - …
+organisaties:           # klanten, partners, leveranciers uit de vaste lijst
   - …
 bron: teams             # plaud | teams
 ```
@@ -34,14 +42,21 @@ bron: teams             # plaud | teams
 Daarna volgen de secties `## Samenvatting`, `## Besluiten`, `## Actiepunten` (`- [ ]` open, `- [x]` afgerond,
 eigenaar vetgedrukt vooraan), `## Open vragen` en `## Notities` (eigen aantekeningen van de gebruiker).
 
+Gesprekstypes: workshop, ontwikkelgesprek, sollicitatie, teamoverleg, 1-op-1, stuurgroep, MT-overleg, demo,
+klantgesprek, strategiesessie, kennismaking, overleg, overig.
+
 ## Zo beantwoord je vragen
 
 1. Begin bij `INDEX.md` om het juiste onderwerp, de persoon of de periode te vinden.
-2. Gaat de vraag over een persoon, lees dan `personen/<naam>.md`; over een onderwerp `onderwerpen/<onderwerp>.md`.
+2. Gaat de vraag over een persoon, lees dan `personen/<naam>.md`; over een onderwerp `onderwerpen/<onderwerp>.md`;
+   over een klant of partner `organisaties/<naam>.md`; over een terugkerend overleg `reeksen/<titel>.md`.
+   "Wat bespraken we met Jan?" gaat meestal over de gesprekken **over** Jan (`over: Jan …`), niet alleen
+   over de gesprekken waarin Jan voorkomt.
    Bestandsnamen zijn kleine letters met streepjes, zonder accenten (`jan-de-vries.md`).
 3. Voor details open je de gelinkte gespreksbestanden. Zoeken over alle gesprekken kan ook direct:
    - gesprekken in een maand: de bestanden in `gesprekken/2026-09/`
    - een onderwerp of persoon in de metadata: `grep -rlx "  - Datamigratie" gesprekken`
+   - gesprekken over iemand: `grep -rl "^over: Jan de Vries$" gesprekken`
    - openstaande actiepunten van iemand: `grep -rn '^- \[ \] \*\*Jan de Vries:\*\*' gesprekken`
    - een term in de samenvattingen: `grep -rni "datamigratie" gesprekken`
 4. Gebruik de canonieke namen. Varianten staan onder "Ook bekend als" op de persoons- en onderwerppagina's.
