@@ -6,7 +6,12 @@ cd "$(dirname "$0:A")/.."
 npm run sync
 sync_status=$?
 # Knowledge base (verrijken + indexeren), opt-in via KB_AUTO=on in .env.
+# Skipped while another knowledge-base run is still busy (e.g. a long first enrichment).
 if grep -qE '^KB_AUTO="?on"?' .env 2>/dev/null; then
-  npm run --silent kb || true
+  if pgrep -f 'scripts/kb-(beheer|enrich|index)' >/dev/null; then
+    echo "Kennisbank overgeslagen: er loopt al een kennisbank-run."
+  else
+    npm run --silent kb || true
+  fi
 fi
 exit $sync_status
