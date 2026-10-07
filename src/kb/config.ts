@@ -15,6 +15,8 @@ export const kbConfig = {
   adminDir: path.join(dir, '_beheer'),
   cacheDir: path.join(dir, '_beheer', 'cache'),
   vocabularyFile: path.join(dir, '_beheer', 'vocabulaire.yml'),
+  autoVocabularyFile: path.join(dir, '_beheer', 'vocabulaire.auto.yml'),
+  changesFile: path.join(dir, '_beheer', 'wijzigingen.md'),
   candidatesFile: path.join(dir, '_beheer', 'kandidaten.md'),
   /** Raw transcripts store UTC times; the knowledge base shows local time. */
   timeZone: process.env.KB_TIMEZONE ?? 'Europe/Amsterdam',

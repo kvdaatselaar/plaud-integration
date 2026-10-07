@@ -1,20 +1,29 @@
-# Vaste lijst voor de kennisbank.
+# Vaste lijst voor de kennisbank: JOUW beslissingen.
 #
-# Alleen personen, onderwerpen en organisaties uit deze lijst komen in de
-# gespreksbestanden, op INDEX.md en krijgen een eigen pagina. Varianten
-# (bijnamen, afkortingen, spraakherkenningsfouten) zet je onder `aliassen`;
-# die worden samengevoegd tot `naam`.
-#
-# Namen van personen die niet in de lijst staan, worden in samenvattingen
-# vervangen door "[naam]". Kandidaten (met aantallen) staan na elke
-# `npm run kb:enrich` in _beheer/kandidaten.md.
-#
-# Na het aanpassen: `npm run kb`. Het taalmodel wordt daarvoor niet opnieuw
-# aangeroepen; bestaande extracties worden alleen opnieuw gekoppeld.
+# De lijst bestaat uit twee lagen:
+#   - dit bestand (vocabulaire.yml): eigenaar, onderwerpen, types, correcties en `negeren`.
+#     Wat hier staat wint altijd.
+#   - vocabulaire.auto.yml: wordt door `npm run kb:beheer` opgebouwd uit de agenda, de
+#     gesprekken en het lokale taalmodel (personen, organisaties met soort, schrijfvarianten,
+#     nieuwe onderwerpen). Niet bewerken.
+# Wat er automatisch veranderde staat in wijzigingen.md. Niet eens? Corrigeer het hier of zet
+# het in `negeren`. Na een aanpassing: `npm run kb` (het taalmodel wordt niet opnieuw gevraagd
+# om bestaande gesprekken samen te vatten).
 
 # Jij: gesprekken "over" iemand (1-op-1's e.d.) gaan nooit over de eigenaar.
 eigenaar: Jan Jansen
 
+beheer:
+  externe_personen: aan            # ook deelnemers van andere organisaties (uit: alleen collega's)
+  min_gesprekken_organisatie: 3    # zo vaak moet het model een organisatie noemen
+  min_gesprekken_onderwerp: 5      # zo vaak moet een nieuw thema voorkomen voor een eigen subonderwerp
+  nieuwe_onderwerpen: automatisch  # of: voorstel (alleen in wijzigingen.md)
+  uitsluiten_soorten: [technologie, overig]   # soorten: klant, partner, leverancier, groep, investeerder, overheid, technologie, overig
+
+# Namen die nooit in de kennisbank komen (personen, organisaties, onderwerpen of aliassen).
+negeren: []
+
+# Correcties en aanvullingen. Personen en organisaties komen verder automatisch.
 personen: []
 #  - naam: Jan Jansen
 #    aliassen: [Jan, J. Jansen]

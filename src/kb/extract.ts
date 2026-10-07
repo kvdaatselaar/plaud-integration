@@ -3,15 +3,21 @@ import { kbConfig } from './config.js';
 import { chatJson } from './llm.js';
 import { readJson, writeJson } from './files.js';
 import type { SourceTranscript } from './sources.js';
-import type { Vocabulary } from './vocabulary.js';
+import { ORG_KINDS, type Vocabulary } from './vocabulary.js';
 
 /** Bump when prompts or schema change in a way that should re-run extraction. */
-export const PROMPT_VERSION = 3;
+export const PROMPT_VERSION = 4;
 
 export interface ActionItem {
   actie: string;
   eigenaar?: string;
   deadline?: string;
+}
+
+/** The model's judgement, from this conversation, of how an organisation relates to the owner's organisation. */
+export interface OrgRelation {
+  organisatie: string;
+  soort: string;
 }
 
 export interface Extraction {
@@ -27,9 +33,14 @@ export interface Extraction {
   /** Most specific topics; main topics are derived from the vocabulary. */
   onderwerpen: string[];
   organisaties: string[];
+  /** Per organisation: its relation according to this conversation (input for kb:beheer). */
+  relaties: OrgRelation[];
   /** For 1-op-1's and similar: the person the conversation is about (not the owner). */
   over_persoon: string;
 }
+
+/** Model output before normalize(): organisations come with their relation. */
+type RawExtraction = Omit<Partial<Extraction>, 'organisaties' | 'relaties'> & { organisaties?: unknown };
 
 interface CacheEntry {
   version: number;
@@ -52,6 +63,15 @@ const actions = {
     required: ['actie'],
   },
 };
+const orgList = {
+  type: 'array',
+  maxItems: MAX.organisaties,
+  items: {
+    type: 'object',
+    properties: { naam: str, relatie: { type: 'string', enum: Object.keys(ORG_KINDS) } },
+    required: ['naam', 'relatie'],
+  },
+};
 const PART_SCHEMA = {
   type: 'object',
   properties: {
@@ -62,7 +82,7 @@ const PART_SCHEMA = {
     personen: strList(MAX.personen),
     overige_personen: strList(MAX.overige_personen),
     onderwerpen: strList(MAX.onderwerpen),
-    organisaties: strList(MAX.organisaties),
+    organisaties: orgList,
   },
   required: ['kernpunten', 'besluiten', 'actiepunten', 'open_vragen', 'personen', 'overige_personen', 'onderwerpen', 'organisaties'],
 };
@@ -77,7 +97,7 @@ const finalSchema = (types: string[]) => ({
     personen: strList(MAX.personen),
     overige_personen: strList(MAX.overige_personen),
     onderwerpen: strList(MAX.onderwerpen),
-    organisaties: strList(MAX.organisaties),
+    organisaties: orgList,
     over_persoon: str,
   },
   required: ['samenvatting', 'type', 'besluiten', 'actiepunten', 'open_vragen', 'personen', 'overige_personen', 'onderwerpen', 'organisaties', 'over_persoon'],
@@ -96,7 +116,7 @@ function systemPrompt(vocab: Vocabulary): string {
       ].join('\n')).join('\n')
     : '(nog leeg)';
   const orgs = vocab.organisations.length
-    ? vocab.organisations.map(o => `- ${o.naam}${o.soort ? ` [${o.soort}]` : ''}${aliases(o.aliassen)}`).join('\n')
+    ? vocab.organisations.map(o => `- ${o.naam}${aliases(o.aliassen)}`).join('\n')
     : '(nog leeg)';
   const types = vocab.typeDefs.map(t => `- ${t.naam}${t.omschrijving ? `: ${t.omschrijving}` : ''}`).join('\n');
   const owner = vocab.owner ? `De eigenaar van de kennisbank is ${vocab.owner.naam}.` : '';
@@ -124,6 +144,9 @@ ${topics}
 Organisatielijst:
 ${orgs}
 
+Organisatiesoorten (relatie tot Zig):
+${Object.entries(ORG_KINDS).map(([k, d]) => `- ${k}: ${d}`).join('\n')}
+
 Gesprekstypes:
 ${types}`;
 }
@@ -138,7 +161,7 @@ const LIST_FIELDS = `- besluiten, actiepunten (actie, eigenaar, deadline indien 
 - personen: sprekende of genoemde personen die op de personenlijst staan, in de schrijfwijze van de lijst
 - overige_personen: andere persoonsnamen die genoemd worden (alleen de naam)
 - onderwerpen: maximaal 5 onderwerpen waar het gesprek inhoudelijk over gaat; kies uit de onderwerpenlijst het meest specifieke (subonderwerp als dat past, anders het hoofdonderwerp), of formuleer kort (1-3 woorden) een nieuw onderwerp als niets past
-- organisaties: klanten, partners en leveranciers waar het gesprek over gaat, in de schrijfwijze van de organisatielijst als ze daarop staan
+- organisaties: organisaties waar het gesprek over gaat (niet Zig zelf), in de schrijfwijze van de organisatielijst als ze daarop staan; relatie: hoe de organisatie zich volgens dit gesprek tot Zig verhoudt, één van de organisatiesoorten
 - open_vragen: alleen vragen die aan het eind echt onbeantwoord zijn, maximaal 10`;
 
 /** Split on line boundaries so a chunk never cuts a sentence in half. */
@@ -160,7 +183,7 @@ export function chunk(text: string, size: number): string[] {
   return out;
 }
 
-function normalize(raw: Partial<Extraction>, types: string[]): Extraction {
+function normalize(raw: RawExtraction, types: string[]): Extraction {
   const list = (v: unknown, max: number) =>
     (Array.isArray(v) ? [...new Set(v.map(x => String(x).trim()).filter(Boolean))].slice(0, max) : []);
   return {
@@ -179,13 +202,27 @@ function normalize(raw: Partial<Extraction>, types: string[]): Extraction {
     personen: list(raw.personen, MAX.personen),
     overige_personen: list(raw.overige_personen, MAX.overige_personen),
     onderwerpen: list(raw.onderwerpen, MAX.onderwerpen),
-    organisaties: list(raw.organisaties, MAX.organisaties),
+    ...organisations(raw.organisaties),
     over_persoon: String(raw.over_persoon ?? '').trim(),
   };
 }
 
+/** Organisation names plus, where the model gave a valid one, their relation. Accepts plain names too. */
+function organisations(v: unknown): Pick<Extraction, 'organisaties' | 'relaties'> {
+  const items = (Array.isArray(v) ? v : [])
+    .map(o => (typeof o === 'string' ? { naam: o, relatie: '' } : { naam: String(o?.naam ?? ''), relatie: String(o?.relatie ?? '') }))
+    .map(o => ({ naam: o.naam.trim(), relatie: o.relatie.trim() }))
+    .filter(o => o.naam);
+  const names = [...new Set(items.map(o => o.naam))].slice(0, MAX.organisaties);
+  const relaties = names.flatMap(naam => {
+    const soort = items.find(o => o.naam === naam && ORG_KINDS[o.relatie])?.relatie;
+    return soort ? [{ organisatie: naam, soort }] : [];
+  });
+  return { organisaties: names, relaties };
+}
+
 /** Placeholder output for KB_LLM=mock: exercises every section without a model. */
-const MOCK: Extraction = {
+const MOCK: RawExtraction = {
   samenvatting: 'Voorbeeldsamenvatting (KB_LLM=mock, geen taalmodel gebruikt). Mail test@example.com.',
   type: 'overleg',
   besluiten: ['Voorbeeldbesluit.'],
@@ -197,7 +234,7 @@ const MOCK: Extraction = {
   personen: ['Test Persoon'],
   overige_personen: ['Externe Contactpersoon'],
   onderwerpen: ['Testsub', 'Nieuw Onderwerp'],
-  organisaties: ['Testklant', 'Onbekende BV'],
+  organisaties: [{ naam: 'Testklant', relatie: 'klant' }, { naam: 'Onbekende BV', relatie: 'overig' }],
   over_persoon: 'TP',
 };
 
@@ -209,7 +246,7 @@ async function extract(src: SourceTranscript, vocab: Vocabulary): Promise<Extrac
 - over_persoon: alleen bij een 1-op-1, ontwikkelgesprek of sollicitatie: de persoon over wie het gesprek gaat (niet de eigenaar); anders leeg`;
 
   if (parts.length === 1) {
-    const raw = await chatJson<Partial<Extraction>>(system, `${header(src)}
+    const raw = await chatJson<RawExtraction>(system, `${header(src)}
 Geef:
 - samenvatting: 3-8 zinnen lopende tekst over het hele gesprek
 ${typeLine}
@@ -234,13 +271,14 @@ Transcript (deel ${i + 1}):
 ${part}
 """`, PART_SCHEMA, {}));
   }
-  const raw = await chatJson<Partial<Extraction>>(system, `${header(src)}
+  const raw = await chatJson<RawExtraction>(system, `${header(src)}
 Hieronder staan de deelresultaten (JSON) van alle ${parts.length} delen van dit gesprek, in volgorde.
 Combineer ze tot één resultaat:
 - samenvatting: 3-8 zinnen lopende tekst over het hele gesprek
 ${typeLine}
 - besluiten, actiepunten en open_vragen: ontdubbeld; vervalt een open vraag doordat hij later beantwoord is, laat hem dan weg
-- personen, overige_personen, organisaties: ontdubbeld
+- personen, overige_personen: ontdubbeld
+- organisaties: ontdubbeld; verschilt de relatie tussen delen, kies de best onderbouwde
 - onderwerpen: maximaal 5 voor het hele gesprek, zo specifiek mogelijk uit de onderwerpenlijst
 
 ${JSON.stringify(partials)}`, schema, MOCK);

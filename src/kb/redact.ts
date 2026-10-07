@@ -36,3 +36,11 @@ export function redact(text: string, unlistedNames: string[]): string {
   }
   return out;
 }
+
+/**
+ * Personal and health matters: never a topic, alias or topic candidate, whatever a model made of them.
+ * Matched on whole words.
+ */
+const PRIVATE_TERMS = /\b(ziek\w*|ziekenhuis|chemo\w*|kanker|diagnose|medisch\w*|therapie|burn-?out|zwanger\w*|overlij\w*|rouw|begrafenis|scheiding|privé\w*|gezondheid|herstel|pensioen\w*|salaris\w*|beloning\w*|werkdruk|afscheid|ontslag|verzuim|verlof|vakantie\w*|vacantie\w*)\b/i;
+
+export const isPrivateTerm = (term: string): boolean => PRIVATE_TERMS.test(term);

@@ -215,48 +215,59 @@ Bouwt `INDEX.md` en een pagina per persoon en per onderwerp opnieuw op uit de ge
 `CLAUDE.md` actueel. Er zijn geen netwerk- of modelaanroepen, dus deze stap is altijd snel. Pagina's van
 personen of onderwerpen die niet meer voorkomen worden opgeruimd.
 
-`npm run kb` draait beide stappen na elkaar. Met `KB_AUTO=on` in `.env` doet de dagelijkse launchd-run dat
+`npm run kb` draait beheer (de vaste lijst bijwerken, zie hieronder), verrijken en indexeren na elkaar. Met `KB_AUTO=on` in `.env` doet de dagelijkse launchd-run dat
 na de sync automatisch. Daarvoor moet Ollama draaien.
 
-### De vaste lijst (`_beheer/vocabulaire.yml`)
+### De vaste lijst: twee lagen, automatisch onderhouden
 
-Alleen wat op deze lijst staat komt in de kennisbank. Varianten (bijnamen, afkortingen,
-spraakherkenningsfouten) zet je als `aliassen` onder één `naam`, zodat ze worden samengevoegd.
+Alleen wat op de vaste lijst staat komt in de kennisbank. De lijst onderhoudt zichzelf:
 
-| Sectie | Wat |
-|---|---|
-| `eigenaar` | Jij. Gesprekken "over" iemand gaan nooit over jou. |
-| `personen` | Collega's (en eventueel externen) met aliassen, organisatie en rol |
-| `organisaties` | Klanten, partners, leveranciers (`soort`), met een eigen pagina |
-| `onderwerpen` | Hoofdonderwerpen met `sub:`-onderwerpen. Het model kiest het meest specifieke; het hoofdonderwerp volgt daaruit. |
-| `types` | Gesprekstypes in volgorde van voorrang, met `omschrijving` en optioneel `titel`-woorden. Staat zo'n woord in de meetingtitel, dan ligt het type vast. `over_persoon: true` legt vast over wie het gesprek gaat (titel eerst: "MBR Jan & …" → Jan). |
+| Bestand | Van wie | Inhoud |
+|---|---|---|
+| `_beheer/vocabulaire.yml` | jij | `eigenaar`, de onderwerpenboom, `types`, correcties, `negeren` en de `beheer`-instellingen. Wint altijd. |
+| `_beheer/vocabulaire.auto.yml` | `kb:beheer` | personen, organisaties (met soort), schrijfvarianten, nieuwe onderwerpen. Niet bewerken. |
+| `_beheer/wijzigingen.md` | `kb:beheer` | wat er per run automatisch veranderde, en waarom |
 
-Gesprekken met dezelfde titel krijgen automatisch een `reeks` en een eigen pagina met tijdlijn.
+`npm run kb:beheer` (stap 0, draait ook in `npm run kb`):
 
-**Een eerste versie maken** zonder alles over te typen:
+- **Personen** uit de agenda-uitnodigingen van je opgenomen gesprekken (meetings met hoogstens 15
+  deelnemers, minimaal 2 gesprekken). Organisatie volgt uit het e-maildomein. Aliassen: voornaam als die
+  uniek is, dubbele voornaam ("Peter Jan"), en een gedeelde voornaam alleen als de agenda uitwijst wie bij
+  de 1-op-1's met die naam in de titel zat.
+- **Organisaties** uit e-maildomeinen van externe deelnemers en uit namen die het model in minimaal
+  `min_gesprekken_organisatie` gesprekken noemt. Namen die hetzelfde klinken worden samengevoegd; de spelling
+  van het e-maildomein wint ("Akme" wordt een alias van Acme). De **soort** (klant, partner, leverancier,
+  groep, investeerder, overheid, technologie, overig) volgt uit het verrijken: het model leest daar het hele
+  gesprek en beoordeelt per genoemde organisatie de relatie. Een duidelijke meerderheid over minimaal twee
+  gesprekken beslist; tot die er is, deelt het model de organisatie in op basis van titels, typen en termen.
+  Soorten in `uitsluiten_soorten` blijven buiten de kennisbank.
+- **Onderwerpen**: termen die het model gebruikte en die niet op de lijst staan, koppelt het lokale model aan
+  het meest specifieke (sub)onderwerp, als alias en alleen als het zeker is. Schrijft het model
+  "Hoofdonderwerp: iets nieuws", dan telt het gesprek alvast mee onder dat hoofdonderwerp. Algemene woorden
+  en persoonlijke zaken (gezondheid, privéleven, beloning) worden nooit een alias of onderwerp; termen uit
+  verrijkingen van vóór de huidige privacyregels tellen niet mee. Een thema dat nergens past en in minimaal
+  `min_gesprekken_onderwerp` gesprekken voorkomt, wordt een nieuw subonderwerp onder het passende
+  hoofdonderwerp (nooit genoemd naar een persoon of organisatie), of alleen een voorstel met
+  `nieuwe_onderwerpen: voorstel`.
+- **Schrijfvarianten** van de spraakherkenning, met een klanksleutel ("Woonet" → WoonNet). Afkortingen en
+  woordparen met een vulwoord tellen niet mee; bij personen en organisaties alleen varianten die meestal met
+  een hoofdletter staan.
 
-```bash
-npm run kb:analyze                  # thema's en types per gesprek (lokaal model, ±20 s per gesprek)
-npm run kb:vocab                    # voorstel voor personen en organisaties → _beheer/vocabulaire.voorstel.yml
-npm run kb:vocab -- --volledig      # idem, ook voor namen die al op de lijst staan
-npm run kb:aliassen                 # schrijfvarianten van de spraakherkenning → _beheer/aliassen.voorstel.md
-npm run kb:aliassen -- --toepassen  # varianten van organisaties en onderwerpen direct toevoegen
+Beslissingen van het model worden gecachet; elke run vraagt alleen naar wat nieuw is. Is de agenda niet
+bereikbaar, dan blijft de vorige automatische laag staan.
+
+**Ingrijpen** hoeft niet, maar kan altijd in `vocabulaire.yml`:
+
+```yaml
+negeren: [Microsoft]          # komt nooit (meer) in de kennisbank
+organisaties:
+  - naam: WoonNet             # verkeerde spelling of samenvoegen: jouw naam wint,
+    aliassen: [Woonet]        # de automatische varianten komen eronder
+    soort: klant              # en jouw soort wint van die van het model
 ```
 
-`kb:aliassen` zoekt in de transcripten naar woorden en woordparen die *klinken* als een naam op de lijst maar
-anders gespeld zijn (een eenvoudige klanksleutel voor Nederlands en Engels: "akme" en "Acmee" → Acme,
-"Woon Net" → WoonNet). Afkortingen en woordparen met een vulwoord tellen niet mee. Loop het voorstel na:
-een gewoon woord dat toevallig hetzelfde klinkt hoort er niet in. `--toepassen` voegt bij organisaties alleen
-varianten toe die meestal met een hoofdletter staan.
-
-`kb:vocab` haalt personen uit de agenda-uitnodigingen van je opgenomen gesprekken (alleen meetings met
-hoogstens 15 deelnemers, minimaal 2 gesprekken). Collega's met je eigen e-maildomein staan aan,
-externen staan uitgecommentarieerd. Een gedeelde voornaam wordt alleen alias als de agenda uitwijst wie er
-bij de 1-op-1's met die naam in de titel zat. Organisaties komen uit de analyse (minimaal 3 gesprekken);
-vul zelf `soort` in.
-
-Na elke verrijking staat in `_beheer/kandidaten.md` wat het model nog meer vond, met het aantal gesprekken.
-Neem over wat erin hoort en draai `npm run kb`; het model wordt daarvoor niet opnieuw aangeroepen.
+`npm run kb:aliassen` maakt een rapport van alle gevonden schrijfvarianten (`_beheer/aliassen.voorstel.md`).
+`npm run kb:beheer -- --dry-run` laat zien wat er zou veranderen zonder iets te schrijven.
 
 De lijst staat in je kennisbankmap, niet in deze repository: hij bevat namen.
 
@@ -487,8 +498,8 @@ scripts/
 ├── dump-transcripts.ts     # backfill van markdown-files voor al gesynchroniseerde opnames
 ├── download-audio.ts       # MP3-export naar lokale map (idempotent)
 ├── kb-analyze.ts           # kennisbank: analyse voor de inrichting van de vaste lijst
-├── kb-vocab.ts             # kennisbank: voorstel personen en organisaties voor de vaste lijst
-├── kb-aliassen.ts          # kennisbank: schrijfvarianten van namen (klanksleutel)
+├── kb-beheer.ts            # kennisbank stap 0: vaste lijst automatisch onderhouden
+├── kb-aliassen.ts          # kennisbank: rapport van schrijfvarianten (klanksleutel)
 ├── kb-enrich.ts            # kennisbank stap 1: verrijken
 ├── kb-index.ts             # kennisbank stap 2: indexeren
 └── run-sync.sh             # launchd wrapper (laadt nvm; KB_AUTO=on → ook kennisbank)
@@ -519,9 +530,9 @@ uninstall.sh                   # launchd unload + state cleanup
 | `npm run teams:debug` | Teams-transcripts in de laatste 30 dagen + meetings zonder toegang |
 | `npm run teams:repair` | Dubbele/verkeerd gedateerde Teams-pagina's opschonen (dry run; `-- --apply`) |
 | `npm run kb:analyze` | Analyse vooraf: thema's en types voorstellen voor de vaste lijst |
-| `npm run kb:vocab` | Voorstel personen (uit de agenda) en organisaties (uit de analyse) |
-| `npm run kb:aliassen` | Schrijfvarianten van namen in de transcripten (`-- --toepassen` voegt ze toe) |
+| `npm run kb:beheer` | Vaste lijst automatisch onderhouden (personen, organisaties, soort, varianten, onderwerpen) |
+| `npm run kb:aliassen` | Rapport van schrijfvarianten van namen in de transcripten |
 | `npm run kb:enrich` | Kennisbank stap 1: gespreksbestanden maken (lokaal taalmodel) |
 | `npm run kb:index` | Kennisbank stap 2: INDEX.md + pagina's per persoon en onderwerp |
-| `npm run kb` | Beide kennisbankstappen |
+| `npm run kb` | Beheer, verrijken en indexeren na elkaar |
 | `npm run typecheck` | TypeScript check |

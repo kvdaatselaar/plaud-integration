@@ -1,7 +1,7 @@
 import { Document, Scalar, parse } from 'yaml';
 import { kbConfig, GENERATED_MARKER } from './config.js';
 import { safeFileName, slugify, splitFrontmatter } from './files.js';
-import { redact } from './redact.js';
+import { isPrivateTerm, redact } from './redact.js';
 import { normalizeKey, type Vocabulary } from './vocabulary.js';
 import type { Extraction } from './extract.js';
 import type { SourceTranscript } from './sources.js';
@@ -117,7 +117,15 @@ export function buildConversation(src: SourceTranscript, ex: Extraction, vocab: 
     if (hit) {
       topics.add(hit.naam);
       mainTopics.add(hit.parent ?? hit.naam);
-    } else candidates.push({ name: t, kind: 'onderwerp', origin: 'onderwerp' });
+    } else {
+      // "Main topic: something new": file it under the known part until kb:beheer maps the term.
+      const { term, prefix } = vocab.topicTerm(t);
+      if (prefix) {
+        topics.add(prefix.naam);
+        mainTopics.add(prefix.parent ?? prefix.naam);
+      }
+      if (!isPrivateTerm(term)) candidates.push({ name: term, kind: 'onderwerp', origin: 'onderwerp' });
+    }
   }
   // A main topic is redundant when one of its sub-topics is already there.
   for (const t of [...topics]) if (mainTopics.has(t) && vocab.topics.some(x => x.parent === t && topics.has(x.naam))) topics.delete(t);

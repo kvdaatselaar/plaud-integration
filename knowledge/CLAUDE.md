@@ -82,9 +82,13 @@ klantgesprek, strategiesessie, kennismaking, overleg, overig.
 
 De kennisbank wordt gegenereerd door het project `plaud-integration`:
 
+- `npm run kb:beheer`: de vaste lijst van personen, organisaties en onderwerpen automatisch bijwerken
 - `npm run kb:enrich`: nieuwe of gewijzigde transcripten samenvatten (lokaal taalmodel)
-- `npm run kb:index`: `INDEX.md` en de pagina's per persoon en onderwerp opnieuw opbouwen
-- `npm run kb`: beide
+- `npm run kb:index`: `INDEX.md` en de pagina's per persoon, onderwerp, organisatie en reeks opnieuw opbouwen
+- `npm run kb`: alle drie, na elkaar (draait ook dagelijks)
+
+Correcties op de vaste lijst gebeuren in `_beheer/vocabulaire.yml` (zie de README van het project); help daar
+alleen bij als de gebruiker erom vraagt.
 
 Pas gegenereerde bestanden niet aan. Twee uitzonderingen blijven bewaard bij opnieuw genereren:
 actiepunten afvinken, en eigen tekst onder `## Notities` in een gespreksbestand.

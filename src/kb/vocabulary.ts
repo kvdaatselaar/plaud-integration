@@ -25,7 +25,44 @@ export interface TypeDef {
   overPersoon: boolean;
 }
 
+/** The `beheer:` section of vocabulaire.yml: how kb:beheer maintains the automatic layer. */
+export interface MaintenancePolicy {
+  /** Include attendees from other organisations as persons. */
+  externePersonen: boolean;
+  /** A name the model mentions must occur in this many conversations to become an organisation. */
+  minGesprekkenOrganisatie: number;
+  /** A new theme must occur in this many conversations to become a sub-topic. */
+  minGesprekkenOnderwerp: number;
+  /** `voorstel`: new sub-topics only go to wijzigingen.md; `automatisch`: they are added. */
+  nieuweOnderwerpen: 'automatisch' | 'voorstel';
+  /** Organisation kinds that are kept out of the knowledge base. */
+  uitsluitenSoorten: string[];
+}
+
+/** How an organisation relates to the owner's organisation. Used by enrichment and by kb:beheer. */
+export const ORG_KINDS: Record<string, string> = {
+  klant: 'Zig levert software of diensten aan hen; meestal een woningcorporatie, vastgoedbeheerder of andere afnemer',
+  partner: 'werkt samen met Zig richting klanten: implementatie-, integratie-, consultancy- of verkooppartner, of een bedrijf waarmee samen een product wordt ontwikkeld',
+  leverancier: 'Zig koopt iets van hen: een tool, platform, dienst of advies voor eigen gebruik (bijv. HR-, CRM- of financiële software, detachering)',
+  groep: 'onderdeel van de Zig-groep: dochterbedrijf, overgenomen bedrijf of eigen product',
+  investeerder: 'aandeelhouder of investeringsmaatschappij van Zig (bijv. private equity); zit vaak in de RvC of board',
+  overheid: 'overheid, toezichthouder of brancheorganisatie',
+  technologie: 'algemene technologiegigant of -product dat iedereen gebruikt, zoals Microsoft, Azure, AWS, Google, GitHub of OpenAI',
+  overig: 'geen organisatie, of past nergens anders',
+};
+
+export const DEFAULT_POLICY: MaintenancePolicy = {
+  externePersonen: true,
+  minGesprekkenOrganisatie: 3,
+  minGesprekkenOnderwerp: 5,
+  nieuweOnderwerpen: 'automatisch',
+  uitsluitenSoorten: ['technologie', 'overig'],
+};
+
 export interface Vocabulary {
+  /** Names (and aliases) that never enter the knowledge base. */
+  ignored(name: string): boolean;
+  policy: MaintenancePolicy;
   /** The knowledge-base owner; "about" never points to them. */
   owner?: VocabEntry;
   persons: VocabEntry[];
@@ -36,6 +73,8 @@ export interface Vocabulary {
   types: string[];
   matchPerson(raw: string): VocabEntry | undefined;
   matchTopic(raw: string): VocabEntry | undefined;
+  /** Splits "Main topic: term" (models sometimes write the tree path) into the known prefix and the term. */
+  topicTerm(raw: string): { term: string; prefix?: VocabEntry };
   matchOrganisation(raw: string): VocabEntry | undefined;
   /** Persons whose name or alias occurs in a text (e.g. a meeting title). */
   personsIn(text: string): VocabEntry[];
@@ -68,6 +107,10 @@ export function wordPattern(phrase: string): RegExp {
 const strings = (v: unknown) => (Array.isArray(v) ? v.map(String).map(s => s.trim()).filter(Boolean) : []);
 
 function toEntries(raw: unknown, kind: string, parent?: string): VocabEntry[] {
+  return toEntriesWith(raw, kind, item => parent ?? (item.parent ? String(item.parent) : undefined));
+}
+
+function toEntriesWith(raw: unknown, kind: string, parentOf: (item: Record<string, unknown>) => string | undefined): VocabEntry[] {
   if (!Array.isArray(raw)) return [];
   const out: VocabEntry[] = [];
   for (const item of raw) {
@@ -82,7 +125,7 @@ function toEntries(raw: unknown, kind: string, parent?: string): VocabEntry[] {
       rol: item.rol ? String(item.rol) : undefined,
       omschrijving: item.omschrijving ? String(item.omschrijving) : undefined,
       soort: item.soort ? String(item.soort) : undefined,
-      parent,
+      parent: parentOf(item),
     });
   }
   return out;
@@ -132,16 +175,89 @@ function buildMatcher(entries: VocabEntry[], kind: string): (raw: string) => Voc
   return (raw: string) => byKey.get(normalizeKey(raw));
 }
 
-/** Loads _beheer/vocabulaire.yml, creating it from the template on first use. */
-export function loadVocabulary(file = kbConfig.vocabularyFile): Vocabulary {
+function readYaml(file: string): Record<string, unknown> {
+  return fs.existsSync(file) ? ((parse(fs.readFileSync(file, 'utf-8')) ?? {}) as Record<string, unknown>) : {};
+}
+
+const variantsOf = (e: VocabEntry) => [e.naam, ...e.aliassen].map(normalizeKey);
+
+/**
+ * Manual entries win. An automatic entry that shares a name or alias with a manual one
+ * only adds its aliases and fills empty fields; the rest are added as they are.
+ */
+function mergeEntries(manual: VocabEntry[], auto: VocabEntry[], ignored: (n: string) => boolean): VocabEntry[] {
+  const out = manual.map(e => ({ ...e, aliassen: [...e.aliassen] }));
+  for (const a of auto) {
+    const keys = new Set(variantsOf(a));
+    const target = out.find(m => variantsOf(m).some(k => keys.has(k)));
+    if (!target) {
+      out.push({ ...a, aliassen: [...a.aliassen] });
+      continue;
+    }
+    for (const alias of [a.naam, ...a.aliassen]) {
+      if (!variantsOf(target).includes(normalizeKey(alias))) target.aliassen.push(alias);
+    }
+    target.organisatie ??= a.organisatie;
+    target.rol ??= a.rol;
+    target.soort ??= a.soort;
+    target.omschrijving ??= a.omschrijving;
+  }
+  return out
+    .filter(e => !ignored(e.naam))
+    .map(e => ({ ...e, aliassen: e.aliassen.filter(a => !ignored(a)) }));
+}
+
+/** Topics: automatic entries either add aliases to an existing topic or are new sub-topics of a manual main topic. */
+function mergeTopics(manual: VocabEntry[], auto: VocabEntry[], ignored: (n: string) => boolean): VocabEntry[] {
+  const out = manual.map(e => ({ ...e, aliassen: [...e.aliassen] }));
+  const mains = new Set(manual.filter(t => !t.parent).map(t => t.naam));
+  for (const a of auto) {
+    const target = out.find(m => normalizeKey(m.naam) === normalizeKey(a.naam));
+    if (target) {
+      for (const alias of a.aliassen) if (!variantsOf(target).includes(normalizeKey(alias))) target.aliassen.push(alias);
+    } else if (a.parent && mains.has(a.parent)) {
+      out.push({ ...a, aliassen: [...a.aliassen] });
+    }
+  }
+  return out
+    .filter(e => !ignored(e.naam))
+    .map(e => ({ ...e, aliassen: e.aliassen.filter(a => !ignored(a)) }));
+}
+
+function toPolicy(raw: unknown): MaintenancePolicy {
+  const o = (raw ?? {}) as Record<string, unknown>;
+  const num = (v: unknown, d: number) => (typeof v === 'number' && v > 0 ? v : d);
+  return {
+    externePersonen: o.externe_personen !== false && o.externe_personen !== 'uit',
+    minGesprekkenOrganisatie: num(o.min_gesprekken_organisatie, DEFAULT_POLICY.minGesprekkenOrganisatie),
+    minGesprekkenOnderwerp: num(o.min_gesprekken_onderwerp, DEFAULT_POLICY.minGesprekkenOnderwerp),
+    nieuweOnderwerpen: o.nieuwe_onderwerpen === 'voorstel' ? 'voorstel' : 'automatisch',
+    uitsluitenSoorten: Array.isArray(o.uitsluiten_soorten) ? strings(o.uitsluiten_soorten) : DEFAULT_POLICY.uitsluitenSoorten,
+  };
+}
+
+/**
+ * Loads the fixed list: _beheer/vocabulaire.yml (yours) merged over
+ * _beheer/vocabulaire.auto.yml (maintained by kb:beheer). Creates the manual file
+ * from the template on first use. `auto: false` gives the manual layer alone.
+ */
+export function loadVocabulary(options: { file?: string; autoFile?: string; auto?: boolean } | string = {}): Vocabulary {
+  const opts = typeof options === 'string' ? { file: options } : options;
+  const file = opts.file ?? kbConfig.vocabularyFile;
   if (!fs.existsSync(file)) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.copyFileSync(TEMPLATE, file);
   }
-  const doc = (parse(fs.readFileSync(file, 'utf-8')) ?? {}) as Record<string, unknown>;
-  const persons = toEntries(doc.personen, 'persoon');
-  const topics = toTopics(doc.onderwerpen);
-  const organisations = toEntries(doc.organisaties, 'organisatie');
+  const doc = readYaml(file);
+  const autoDoc = opts.auto === false ? {} : readYaml(opts.autoFile ?? kbConfig.autoVocabularyFile);
+  const ignoreSet = new Set(strings(doc.negeren).map(normalizeKey));
+  const ignored = (n: string) => ignoreSet.has(normalizeKey(n));
+
+  const persons = mergeEntries(toEntries(doc.personen, 'persoon'), toEntries(autoDoc.personen, 'persoon (auto)'), ignored);
+  const topics = mergeTopics(toTopics(doc.onderwerpen), toEntries(autoDoc.onderwerpen, 'onderwerp (auto)'), ignored);
+  const policy = toPolicy(doc.beheer);
+  const organisations = mergeEntries(toEntries(doc.organisaties, 'organisatie'), toEntries(autoDoc.organisaties, 'organisatie (auto)'), ignored)
+    .filter(o => !o.soort || !policy.uitsluitenSoorten.includes(o.soort));
   const typeDefs = toTypes(doc.types);
   const matchPerson = buildMatcher(persons, 'personen');
 
@@ -154,8 +270,16 @@ export function loadVocabulary(file = kbConfig.vocabularyFile): Vocabulary {
     return [...new Set(kept.map(h => h.p))];
   };
   const typePatterns = typeDefs.map(d => ({ d, res: d.titel.map(wordPattern) }));
+  const directTopic = buildMatcher(topics, 'onderwerpen');
+  const topicTerm = (raw: string) => {
+    const m = raw.match(/^(.+?)\s*(?::|>|\/|–|—| - )\s*(.+)$/);
+    const prefix = m ? directTopic(m[1]) : undefined;
+    return prefix ? { term: m![2].trim(), prefix } : { term: raw };
+  };
 
   return {
+    ignored,
+    policy,
     owner: typeof doc.eigenaar === 'string' ? matchPerson(doc.eigenaar) : undefined,
     persons,
     topics,
@@ -163,7 +287,8 @@ export function loadVocabulary(file = kbConfig.vocabularyFile): Vocabulary {
     typeDefs,
     types: typeDefs.map(d => d.naam),
     matchPerson,
-    matchTopic: buildMatcher(topics, 'onderwerpen'),
+    matchTopic: (raw: string) => directTopic(raw) ?? (t => (t.prefix ? directTopic(t.term) : undefined))(topicTerm(raw)),
+    topicTerm,
     matchOrganisation: buildMatcher(organisations, 'organisaties'),
     personsIn,
     typeFromTitle: (title: string) => typePatterns.find(t => t.res.some(re => re.test(title)))?.d,
