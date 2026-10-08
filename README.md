@@ -198,6 +198,7 @@ npm run kb:enrich -- --dry-run           # hoeveel transcripten en modelaanroepe
 npm run kb:enrich -- --limit=5           # proefrun, of de eerste run in porties
 npm run kb:enrich -- --since=2026-09-01  # alleen recente transcripten
 npm run kb:enrich -- --force             # alles opnieuw door het model (na een modelwissel)
+npm run kb:enrich -- --alleen-op-stroom  # Mac op accu: wacht op de lader vóór elk gesprek
 ```
 
 - **Herhaalbaar:** de modeluitvoer wordt per transcriptinhoud gecachet. Een transcript gaat dus maar één keer
@@ -216,7 +217,15 @@ Bouwt `INDEX.md` en een pagina per persoon en per onderwerp opnieuw op uit de ge
 personen of onderwerpen die niet meer voorkomen worden opgeruimd.
 
 `npm run kb` draait beheer (de vaste lijst bijwerken, zie hieronder), verrijken en indexeren na elkaar. Met `KB_AUTO=on` in `.env` doet de dagelijkse launchd-run dat
-na de sync automatisch. Daarvoor moet Ollama draaien.
+na de sync automatisch. Daarvoor moet Ollama draaien. Dagelijks gaan alleen nieuwe of gewijzigde transcripten
+door het model; de rest komt uit de cache.
+
+Een grote achterstand (de eerste keer, of na een aanpassing van de prompt) kost een paar minuten per gesprek
+en dus al snel een nacht. Plan die met `npm run kb:later -- 20:00`: de run start dan vanzelf om 20:00 (of
+morgen, als dat tijdstip al voorbij is), verrijkt alleen op netstroom en draait daarna nog één keer
+`npm run kb`. Zolang hij wacht of loopt, slaat de dagelijkse sync de kennisbank over. Laat de Mac open en aan
+de lader staan; de voortgang staat in `~/.plaud-integration/kb-later.log`. Annuleren:
+`pkill -f 'scripts/kb-(later|enrich)'`. Wat al verwerkt is blijft bewaard.
 
 ### De vaste lijst: twee lagen, automatisch onderhouden
 
@@ -502,6 +511,7 @@ scripts/
 ├── kb-aliassen.ts          # kennisbank: rapport van schrijfvarianten (klanksleutel)
 ├── kb-enrich.ts            # kennisbank stap 1: verrijken
 ├── kb-index.ts             # kennisbank stap 2: indexeren
+├── kb-later.sh             # kennisbank-run later laten starten (bijv. 's nachts), alleen op netstroom
 └── run-sync.sh             # launchd wrapper (laadt nvm; KB_AUTO=on → ook kennisbank)
 knowledge/
 ├── CLAUDE.md               # sjabloon voor Kennisbank/CLAUDE.md
@@ -535,4 +545,5 @@ uninstall.sh                   # launchd unload + state cleanup
 | `npm run kb:enrich` | Kennisbank stap 1: gespreksbestanden maken (lokaal taalmodel) |
 | `npm run kb:index` | Kennisbank stap 2: INDEX.md + pagina's per persoon en onderwerp |
 | `npm run kb` | Beheer, verrijken en indexeren na elkaar |
+| `npm run kb:later -- 20:00` | Volledige kennisbank-run vanaf 20:00, alleen op netstroom; dagelijkse sync wacht |
 | `npm run typecheck` | TypeScript check |

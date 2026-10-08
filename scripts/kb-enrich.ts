@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { kbConfig } from '../src/kb/config.js';
 import { loadVocabulary, normalizeKey } from '../src/kb/vocabulary.js';
 import { scanSources } from '../src/kb/sources.js';
@@ -21,13 +22,31 @@ import { listMarkdown, writeIfChanged } from '../src/kb/files.js';
 //   npm run kb:enrich -- --since=2026-09-01 only transcripts from that date
 //   npm run kb:enrich -- --force            re-extract everything, ignoring the cache
 //   npm run kb:enrich -- --dry-run          show what would be extracted
+//   npm run kb:enrich -- --alleen-op-stroom on a Mac on battery: wait for the charger before each extraction
 const arg = (name: string) => process.argv.find(a => a.startsWith(`--${name}=`))?.split('=')[1];
 const FORCE = process.argv.includes('--force');
 const DRY_RUN = process.argv.includes('--dry-run');
 const LIMIT = Number(arg('limit') ?? Infinity);
+const ON_POWER_ONLY = process.argv.includes('--alleen-op-stroom');
 const SINCE = arg('since') ? Date.parse(`${arg('since')}T00:00:00Z`) : -Infinity;
 
 const log = (m: string) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${m}`);
+
+/** The local model drains a battery in a few hours; a long run waits for the charger instead. */
+async function waitForPower(): Promise<void> {
+  if (!ON_POWER_ONLY || process.platform !== 'darwin') return;
+  const onBattery = () => {
+    try {
+      return execFileSync('pmset', ['-g', 'batt'], { encoding: 'utf-8' }).includes("'Battery Power'");
+    } catch {
+      return false;
+    }
+  };
+  if (!onBattery()) return;
+  log('Op accu: verrijken wacht tot de lader is aangesloten.');
+  while (onBattery()) await new Promise(r => setTimeout(r, 60_000));
+  log('Lader aangesloten: verrijken gaat verder.');
+}
 
 function writeCandidates(found: Map<string, { c: Candidate; spellings: Map<string, number>; conversations: number; origins: Set<string> }>): void {
   const rows = [...found.values()].map(v => ({
@@ -120,6 +139,7 @@ async function main(): Promise<void> {
         waiting++;
         continue;
       }
+      await waitForPower();
       const parts = chunk(src.transcript, kbConfig.llm.chunkChars).length;
       log(`→ [${extracted + 1}/${Math.min(pending.length, LIMIT)}] ${src.relPath} (${parts} deel/delen)`);
       try {
