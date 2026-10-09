@@ -43,6 +43,30 @@ export interface PlaudRecordingDetail extends PlaudRecording {
   [key: string]: unknown;
 }
 
+/** Added in this repo (not upstream). Task status per Plaud: 0 processing, 1 done, negative failed; undefined = never started. */
+export interface PlaudTaskInfo {
+  transcript?: number;
+  summary?: number;
+  audioDeleted: boolean;
+  /** Summary template of the last summary, e.g. AUTO-SELECT / system. */
+  summType?: string;
+  summTypeType?: string;
+}
+
+/** Added in this repo (not upstream). Latest transcript/summary task of a recording, from /ai/file-task-status. */
+export interface PlaudFileTasks {
+  transcript?: number;
+  summary?: number;
+}
+
+export interface PlaudTranscribeOptions {
+  /** Plaud language code, or "auto". */
+  language: string;
+  diarization: boolean;
+  summType: string;
+  summTypeType: string;
+}
+
 export interface PlaudUserInfo {
   id: string;
   nickname: string;

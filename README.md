@@ -54,6 +54,25 @@ Per opname-pagina:
 - Notes / highlights (uit Plaud's `note:` data)
 - Transcript met timestamps per zin (uit `source:` data)
 
+### Opnames zonder transcriptie
+
+Plaud transcribeert opnames van de telefoon automatisch, maar niet alles (bijvoorbeeld opnames uit de
+desktop-app). De sync start dan zelf transcriptie + samenvatting in Plaud, met de instellingen van je laatste
+transcriptie (taal, sjabloon, sprekerherkenning), wacht tot Plaud klaar is (meestal een paar minuten, maximaal
+15) en bewaart het resultaat bij de opname, zoals de webapp doet. Daarna staat de opname gewoon getranscribeerd
+in Plaud en gaat hij in dezelfde run naar OneNote. Is Plaud niet op tijd klaar, dan pakt de volgende sync hem op.
+Een opname die nog zijn tijdstempel als naam had, krijgt (net als in de app) de kop van de samenvatting als naam.
+
+- Niet voor opnames korter dan een minuut (`PLAUD_MIN_TRANSCRIBE_SECONDS`), opnames waar Plaud al mee bezig
+  is, of als je transcriptietegoed niet meer genoeg is (dat staat dan in de log).
+- Een mislukte transcriptie wordt hooguit twee keer gestart; daarna staat in de log dat je hem in de
+  Plaud-app moet starten.
+- Uitzetten: `PLAUD_AUTO_TRANSCRIBE=off`. Wachttijd: `PLAUD_TRANSCRIBE_WAIT_MINUTES` (0 = niet wachten).
+
+Dit gebruikt dezelfde aanroepen als de knop "Generate" in de Plaud-webapp (`/ai/transsumm/{id}`, daarna
+`PATCH /file/{id}` om het resultaat te bewaren); die zijn niet officieel gedocumenteerd en kunnen veranderen.
+Sprekers krijgen geen namen uit je stemprofielen, zoals de app soms wel doet; ze blijven "Speaker 1", "Speaker 2".
+
 ## Teams-meetings
 
 Naast Plaud pakt de sync ook je Microsoft Teams-meeting-transcripts van de

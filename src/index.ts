@@ -7,6 +7,7 @@ import { Calendar, matchEvent } from './calendar.js';
 import type { CalendarEvent } from './calendar.js';
 import { buildPageHtml } from './html.js';
 import { writeTranscript } from './transcripts.js';
+import { requestTranscriptions } from './plaud-transcribe.js';
 import { ensureAudio } from './audio-archive.js';
 import { Teams, GraphError } from './teams.js';
 import { collectTeamsTranscripts, addTeamsTranscript } from './teams-sync.js';
@@ -43,6 +44,14 @@ async function main(): Promise<void> {
   const todo = recordings.filter(r => !state.hasSynced(r.id));
   log(`${todo.length} new recording(s) to sync`);
 
+  // Recordings Plaud didn't transcribe by itself: start it, and wait a while for the result.
+  const transcribedNow = await requestTranscriptions(plaud, todo.filter(r => !r.is_trans), recordings, log);
+  if (transcribedNow.size) {
+    // Saving a transcription can rename the recording (its headline): use the fresh data.
+    const fresh = new Map((await plaud.listRecordings()).map(r => [r.id, r]));
+    for (const rec of todo) if (transcribedNow.has(rec.id) && fresh.has(rec.id)) Object.assign(rec, fresh.get(rec.id));
+  }
+
   let ok = 0;
   let failed = 0;
   let skipped = 0;
@@ -50,7 +59,7 @@ async function main(): Promise<void> {
     try {
       log(`→ ${rec.id} | ${rec.filename}`);
 
-      if (!rec.is_trans) {
+      if (!rec.is_trans && !transcribedNow.has(rec.id)) {
         log(`   ⏭ Overgeslagen — transcript nog niet gereed in Plaud (wordt opnieuw geprobeerd bij volgende sync)`);
         skipped++;
         continue;

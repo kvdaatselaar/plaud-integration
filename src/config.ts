@@ -25,6 +25,12 @@ export const config = {
     dir: process.env.AUDIO_DIR ?? path.join(os.homedir(), 'Documents', 'PlaudAudio'),
     format: (process.env.AUDIO_FORMAT ?? 'mp3').toLowerCase() === 'opus' ? 'opus' as const : 'mp3' as const,
   },
+  transcribe: {
+    // Start Plaud transcription + summary for recordings that have none (e.g. desktop-app recordings).
+    enabled: (process.env.PLAUD_AUTO_TRANSCRIBE ?? 'on').toLowerCase() !== 'off',
+    minSeconds: Number(process.env.PLAUD_MIN_TRANSCRIBE_SECONDS ?? 60),
+    waitMinutes: Number(process.env.PLAUD_TRANSCRIBE_WAIT_MINUTES ?? 15),
+  },
   paths: {
     dir: path.join(os.homedir(), '.plaud-integration'),
     state: path.join(os.homedir(), '.plaud-integration', 'state.json'),
