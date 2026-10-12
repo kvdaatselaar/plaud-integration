@@ -42,9 +42,12 @@ export async function checkLlm(): Promise<void> {
 export async function chatJson<T>(system: string, user: string, schema: object, mock: T): Promise<T> {
   if (kbConfig.llm.provider === 'mock') return mock;
   let lastError: unknown;
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    // After a failure (often: the Mac slept mid-call), give Ollama a moment before trying again.
+    if (attempt > 1) await new Promise(r => setTimeout(r, 30_000));
     try {
       const res = await fetch(`${kbConfig.llm.baseUrl}/api/chat`, {
+        signal: AbortSignal.timeout(kbConfig.llm.timeoutMs),
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -236,7 +236,8 @@ Bouwt `INDEX.md` en een pagina per persoon en per onderwerp opnieuw op uit de ge
 personen of onderwerpen die niet meer voorkomen worden opgeruimd.
 
 `npm run kb` draait beheer (de vaste lijst bijwerken, zie hieronder), verrijken en indexeren na elkaar. Met `KB_AUTO=on` in `.env` doet de dagelijkse launchd-run dat
-na de sync automatisch. Daarvoor moet Ollama draaien. Dagelijks gaan alleen nieuwe of gewijzigde transcripten
+na de sync automatisch, op de achtergrond: de launchd-taak is klaar zodra de sync klaar is, zodat een lange
+kennisbank-run de sync van de volgende dag nooit kan tegenhouden. Daarvoor moet Ollama draaien. Dagelijks gaan alleen nieuwe of gewijzigde transcripten
 door het model; de rest komt uit de cache.
 
 Een grote achterstand (de eerste keer, of na een aanpassing van de prompt) kost een paar minuten per gesprek

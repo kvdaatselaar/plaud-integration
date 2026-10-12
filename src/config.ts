@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import './net.js';
 import * as path from 'node:path';
 import * as os from 'node:os';
 

@@ -31,7 +31,7 @@ const TERM_VERSION = 2;
 
 
 interface Cache {
-  soort: Record<string, { soort: string; reden: string; v?: number }>;
+  soort: Record<string, { soort: string; reden: string; v?: number; stemmen?: string }>;
   labels: Record<string, { onderwerp: string; nieuw: string; hoofd: string; v?: number }>;
 }
 
@@ -48,6 +48,39 @@ export interface Maintenance {
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const domainLabel = (domain: string) => capitalize(domain.split('.').slice(-2, -1)[0] ?? domain);
 const flat = (s: string) => normalizeKey(s).replace(/ /g, '');
+
+/** "Acme Capital", "Acme Group", "Acme B.V." are Acme. */
+const CORPORATE = new Set(['capital', 'partners', 'group', 'groep', 'holding', 'holdings', 'bv', 'nv', 'gmbh', 'ltd', 'inc', 'international', 'nederland', 'netherlands']);
+function baseName(name: string): string {
+  const words = normalizeKey(name).split(' ');
+  if (words.length > 2 && words.slice(-2).join(' ') === 'b v') words.splice(-2);
+  while (words.length > 1 && CORPORATE.has(words[words.length - 1])) words.pop();
+  return words.join(' ');
+}
+
+/** Departments, bodies and roles the model sometimes lists as organisations. */
+const GENERIC = new Set(['hr', 'it', 'ict', 'mt', 'dt', 'rvc', 'board', 'directie', 'management', 'finance', 'financien', 'sales', 'marketing', 'legal', 'support', 'development', 'engineering', 'operations', 'product', 'klantenservice', 'servicedesk', 'team']);
+/** Countries and languages, in Dutch and English ("Nederland", "Roemenië", "Frans"). */
+const PLACES_AND_LANGUAGES = (() => {
+  const out = new Set<string>();
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  for (const locale of ['nl', 'en']) {
+    const regions = new Intl.DisplayNames([locale], { type: 'region' });
+    const languages = new Intl.DisplayNames([locale], { type: 'language' });
+    for (const a of letters) {
+      for (const b of letters) {
+        for (const [names, code] of [[regions, a + b], [languages, (a + b).toLowerCase()]] as const) {
+          try {
+            const n = names.of(code);
+            if (n && n.toLowerCase() !== code.toLowerCase()) out.add(normalizeKey(n));
+          } catch { /* not a code */ }
+        }
+      }
+    }
+  }
+  return out;
+})();
+const notAnOrganisation = (name: string) => GENERIC.has(normalizeKey(name)) || PLACES_AND_LANGUAGES.has(normalizeKey(name));
 
 /**
  * Raw model output per conversation. Organisation names may come from any cache version;
@@ -72,7 +105,8 @@ function modelMentions(sources: SourceTranscript[]): Map<string, Mentions> {
       path.join(kbConfig.cacheDir, 'analyse', `${s.hash}.json`), null);
     const ex = exEntry?.extraction;
     const an = anEntry?.profile;
-    const orgs = [...new Set([...(ex?.organisaties ?? []), ...(an?.organisaties ?? [])])];
+    // Organisations from the enrichment only: the early analysis listed countries and departments too.
+    const orgs = [...new Set(ex?.organisaties ?? [])].filter(o => !notAnOrganisation(o));
     const terms = [...new Set([
       ...((exEntry?.version ?? 0) >= FIRST_PRIVATE_EXTRACT ? ex?.onderwerpen ?? [] : []),
       ...((anEntry?.version ?? 0) >= FIRST_PRIVATE_ANALYSIS ? an?.themas ?? [] : []),
@@ -187,8 +221,9 @@ export async function maintain(
     }
   }
   const group = (name: string) => {
-    const own = manual.matchOrganisation(name) ?? manualBySound.get(soundKey(name));
-    const key = own ? `vocabulaire:${own.naam}` : soundKey(name) || flat(name);
+    const base = baseName(name);
+    const own = manual.matchOrganisation(name) ?? manual.matchOrganisation(base) ?? manualBySound.get(soundKey(base));
+    const key = own ? `vocabulaire:${own.naam}` : soundKey(base) || flat(base);
     const g = groups.get(key) ?? { spellings: new Map(), conversations: new Set(), domains: new Set(), votes: new Map(), manual: own };
     groups.set(key, g);
     return g;
@@ -202,7 +237,7 @@ export async function maintain(
       g.conversations.add(rel);
     }
     for (const r of m.relations) {
-      if (!flat(r.organisatie)) continue;
+      if (!flat(r.organisatie) || notAnOrganisation(r.organisatie)) continue;
       const g = group(r.organisatie);
       g.votes.set(r.soort, (g.votes.get(r.soort) ?? 0) + 1);
     }
@@ -243,14 +278,18 @@ export async function maintain(
 
     const key = normalizeKey(naam);
     const fixed = manual.matchOrganisation(naam)?.soort;
-    const cached = cache.soort[key]?.v === KIND_VERSION ? cache.soort[key] : undefined;
+    const voteKey = [...g.votes].sort().map(([k, n]) => `${k}${n}`).join(',');
+    // A guess is made again when the judgements per conversation changed since.
+    const cached = cache.soort[key]?.v === KIND_VERSION && (cache.soort[key].stemmen ?? '') === voteKey ? cache.soort[key] : undefined;
+    // Without the model, an older decision stands until it can be made again.
+    const stale = llm ? undefined : cache.soort[key];
     // The enrichment read the whole conversation; a clear majority of its judgements decides.
     const votes = [...g.votes].sort((a, b) => b[1] - a[1]);
     const total = votes.reduce((n, [, c]) => n + c, 0);
     const voted = total >= 2 && votes[0][1] * 2 > total
       ? { soort: votes[0][0], reden: `zo beoordeeld in ${votes[0][1]} van ${total} verrijkte gesprekken` }
       : undefined;
-    let kind = fixed ? { soort: fixed, reden: 'vastgelegd in vocabulaire.yml' } : voted ?? cached;
+    let kind = fixed ? { soort: fixed, reden: 'vastgelegd in vocabulaire.yml' } : voted ?? cached ?? stale;
     if (!kind && llm) {
       const convs = [...g.conversations];
       const evidence = [
@@ -262,7 +301,7 @@ export async function maintain(
         total ? `Oordeel per gesprek: ${votes.map(([k, n]) => `${k} ${n}×`).join(', ')}.` : '',
       ].filter(Boolean).join('\n');
       kind = await classify(naam, evidence, manual);
-      cache.soort[key] = { ...kind, v: KIND_VERSION };
+      cache.soort[key] = { ...kind, v: KIND_VERSION, stemmen: voteKey };
       log(`   soort ${naam}: ${kind.soort}`);
     }
     const toelichting = `${g.conversations.size} gesprekken${g.domains.size ? `, domein ${[...g.domains].join(', ')}` : ''}${kind ? `; ${kind.reden}` : ''}`;

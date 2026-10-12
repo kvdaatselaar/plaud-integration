@@ -192,7 +192,8 @@ export class PlaudClient {
    */
   async downloadAudioToFile(id: string, destPath: string, opus = false): Promise<void> {
     const url = await this.getDownloadUrl(id, opus);
-    const res = await fetch(url);
+    // Added in this repo: audio files are large, allow more than the default request deadline.
+    const res = await fetch(url, { signal: AbortSignal.timeout(15 * 60_000) });
     if (!res.ok) throw new Error(`Audio download failed: ${res.status} ${res.statusText}`);
     if (!res.body) throw new Error('Empty body');
     fs.mkdirSync(path.dirname(destPath), { recursive: true });

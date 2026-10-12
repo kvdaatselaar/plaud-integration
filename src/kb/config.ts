@@ -27,6 +27,8 @@ export const kbConfig = {
     model: process.env.KB_MODEL ?? 'gemma3:12b',
     contextTokens: Number(process.env.KB_CONTEXT ?? 16384),
     chunkChars: Number(process.env.KB_CHUNK_CHARS ?? 16000),
+    /** One model call; a long chunk takes a few minutes, so this only catches calls that hang. */
+    timeoutMs: Number(process.env.KB_LLM_TIMEOUT_MINUTES ?? 20) * 60_000,
     /** Transcripts contain customer data; a non-local endpoint must be opted into explicitly. */
     allowRemote: (process.env.KB_ALLOW_REMOTE_LLM ?? '').toLowerCase() === 'yes',
   },
