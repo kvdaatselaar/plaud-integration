@@ -47,9 +47,12 @@ interface CacheEntry {
   model: string;
   extraction: Extraction;
   createdAt: string;
-  /** Set when this extraction is the redo of an unusable one: it is not redone again. */
-  redo?: boolean;
+  /** Set when this extraction is the redo of an unusable one (REDO_VERSION): it is not redone again. */
+  redo?: boolean | number;
 }
+
+/** Bump when the repair of unusable results improves: those are then redone once more. */
+const REDO_VERSION = 2;
 
 /** Partial results per merge call; a long meeting is merged in stages so each call stays small. */
 const MERGE_BUDGET_CHARS = 24_000;
@@ -312,7 +315,15 @@ ${typeLine}
 - onderwerpen: maximaal 5 voor het hele gesprek, zo specifiek mogelijk uit de onderwerpenlijst
 
 ${JSON.stringify(merged)}`, schema, MOCK);
-  return normalize(raw, vocab.types);
+  const result = normalize(raw, vocab.types);
+  if (!unusable(result, src)) return result;
+  // The merge sometimes yields no real summary for a long meeting: write it from the key points instead.
+  const keyPoints = (merged as { kernpunten?: string[] }[]).flatMap((p, i) =>
+    (p?.kernpunten ?? []).map(k => `- (deel ${i + 1}) ${k}`));
+  const retry = await chatJson<{ samenvatting?: string }>(system, `${header(src)}
+Schrijf de samenvatting van het hele gesprek: 3-8 zinnen lopende tekst, in de volgorde van het gesprek, op basis van deze kernpunten per deel:
+${keyPoints.join('\n')}`, { type: 'object', properties: { samenvatting: str }, required: ['samenvatting'] }, { samenvatting: '' });
+  return { ...result, samenvatting: String(retry.samenvatting ?? '').trim() || result.samenvatting };
 }
 
 function cachePath(hash: string): string {
@@ -323,7 +334,7 @@ export function cachedExtraction(src: SourceTranscript): Extraction | undefined 
   const entry = readJson<CacheEntry | null>(cachePath(src.hash), null);
   if (!entry || entry.version !== PROMPT_VERSION) return undefined;
   // An unusable result is redone once, automatically.
-  if (!entry.redo && unusable(entry.extraction, src)) return undefined;
+  if (entry.redo !== REDO_VERSION && unusable(entry.extraction, src)) return undefined;
   return entry.extraction;
 }
 
@@ -340,7 +351,7 @@ export async function getExtraction(src: SourceTranscript, vocab: Vocabulary, fo
       model: kbConfig.llm.model,
       extraction,
       createdAt: new Date().toISOString(),
-      ...(redo ? { redo: true } : {}),
+      ...(redo ? { redo: REDO_VERSION } : {}),
     } satisfies CacheEntry);
   }
   return extraction;
