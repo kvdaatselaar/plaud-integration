@@ -1,7 +1,7 @@
 ---
 name: kennisbank
 description: Gather everything the user's conversation knowledge base (Kennisbank, the locally summarised Plaud recordings and Teams meetings) holds on a person, topic, customer or partner, recurring meeting or period, and answer with sources, covering decisions, open action items, open questions and what was discussed. Use it whenever the user asks what was discussed, decided, agreed or left open in their meetings, calls or 1-on-1s, wants the latest status of a project or customer, wants to prepare for a conversation with someone, or asks which action items are still open. Examples are "wat hebben we met Jan besproken", "wat is de laatste stand van de migratie", "welke actiepunten staan nog open", "zet alles over klant X op een rij" and "what did we agree with Y last month". Use it even when they don't mention the Kennisbank, Plaud or transcripts.
-argument-hint: "<vraag, persoon, onderwerp, organisatie of periode>"
+compatibility: Needs local file access on the Mac that holds the knowledge base and this project (Claude Code or Cowork), not a web or mobile chat.
 allowed-tools:
   - Bash(npm --prefix {{REPO_DIR}} run --silent kb:zoek *)
   - Read(/{{KB_DIR}}/INDEX.md)
