@@ -107,12 +107,12 @@ async function checkPrivacy(text: string): Promise<{ categorieen: string[]; toel
     `Je controleert of een samenvatting van een zakelijk gesprek gevoelige gegevens bevat die er volgens de regels niet in mogen:
 - contactgegevens: e-mail, telefoon, adres
 - huurder_of_bewoner: iets over een individuele huurder, bewoner of eindgebruiker (naam, situatie, klacht, inkomen)
-- persoon_bij_klant: naam of persoonlijke details van een individuele medewerker van een klant of partner
+- persoon_bij_klant: persoonlijke details over een individuele medewerker van een klant of partner (meer dan naam, rol en wat die zakelijk zei of deed)
 - gezondheid: ziekte, gezondheid of herstel van wie dan ook
 - prive_of_gezin: privé- of gezinsomstandigheden van wie dan ook
 - salaris_of_beoordeling: salarisbedragen of beoordelingsscores van personen
 - beveiligingsdetails: wachtwoorden, sleutels of details van beveiligingslekken
-Zakelijke inhoud, namen van organisaties en namen van collega's bij hun werk zijn wél toegestaan. Geef de categorieën die voorkomen (leeg als er niets is) en een korte toelichting zonder de gevoelige gegevens zelf te herhalen.`,
+Zakelijke inhoud, namen van organisaties, en namen en rollen van collega's en zakelijke contactpersonen bij hun werk zijn wél toegestaan. Geef de categorieën die voorkomen (leeg als er niets is) en een korte toelichting zonder de gevoelige gegevens zelf te herhalen.`,
     text,
     {
       type: 'object',
@@ -229,6 +229,13 @@ async function main(): Promise<void> {
     }
     log(`Steekproef: ${sample.length} gesprekken (seed ${SEED}); feiten- en privacycontrole met het lokale model…`);
     const tally: Record<string, number> = { ondersteund: 0, deels: 0, niet_ondersteund: 0 };
+    // Controls tell how far the judge itself can be trusted: a literal sentence from the transcript
+    // should be "ondersteund", a claim from another conversation "niet_ondersteund".
+    const control = { echt: { goed: 0, totaal: 0 }, vreemd: { goed: 0, totaal: 0 } };
+    const literal = (t: string) => {
+      const lines = t.replace(/^\[[\d:]+\]\s*/gm, '').split(/(?<=[.!?])\s+|\n/).map(x => x.replace(/^[^:]{1,40}:\s*/, '').trim()).filter(x => x.split(/\s+/).length >= 12);
+      return lines.length ? lines[Math.floor(random() * lines.length)] : undefined;
+    };
     const factLines: string[] = [];
     const privacyLines: string[] = [];
     const flaggedCategories = new Map<string, number>();
@@ -249,6 +256,16 @@ async function main(): Promise<void> {
         own[v.oordeel]++;
         if (v.oordeel !== 'ondersteund') doubtful.push(`  - ${v.oordeel === 'deels' ? '◐' : '✗'} _${kind}:_ ${claim}\n    → ${v.reden}`);
       }
+      const own_ = literal(transcript);
+      const other = sample[(i + 1) % sample.length];
+      const foreign = sample.length > 1 ? sentences(other.sections.Samenvatting)[0] : undefined;
+      for (const [kind, claim, want] of [['echt', own_, 'ondersteund'], ['vreemd', foreign, 'niet_ondersteund']] as const) {
+        if (!claim) continue;
+        const v = await checkClaim(claim, transcript).catch(() => undefined);
+        if (!v) continue;
+        control[kind].totaal++;
+        if (v.oordeel === want) control[kind].goed++;
+      }
       factLines.push(`- ${fileLink(c.rel)}: ${own.ondersteund} ondersteund, ${own.deels} deels, ${own.niet_ondersteund} niet`, ...doubtful);
       const text = ['Samenvatting', 'Besluiten', 'Actiepunten', 'Open vragen'].map(s => `${s}:\n${c.sections[s] ?? ''}`).join('\n\n');
       const p = await checkPrivacy(text).catch(() => undefined);
@@ -260,9 +277,10 @@ async function main(): Promise<void> {
     }
     const total = tally.ondersteund + tally.deels + tally.niet_ondersteund;
     log(`Feitencontrole: ${total} beweringen — ${pct(tally.ondersteund, total)} ondersteund, ${pct(tally.deels, total)} deels, ${pct(tally.niet_ondersteund, total)} niet ondersteund`);
+    log(`Controle van de beoordelaar: letterlijke zin uit het transcript ${control.echt.goed}/${control.echt.totaal} als ondersteund herkend; bewering uit een ander gesprek ${control.vreemd.goed}/${control.vreemd.totaal} als niet ondersteund`);
     log(`Privacy (model): ${privacyLines.length}/${sample.length} gesprekken gemarkeerd${flaggedCategories.size ? ` — ${[...flaggedCategories].map(([k, v]) => `${k} ${v}`).join(', ')}` : ''}`);
     section(`Feitencontrole (steekproef van ${sample.length}, seed ${SEED})`, [
-      `_${total} beweringen: ${pct(tally.ondersteund, total)} ondersteund, ${pct(tally.deels, total)} deels, ${pct(tally.niet_ondersteund, total)} niet ondersteund. "Niet ondersteund" kan ook betekenen dat de controle het juiste stuk transcript niet vond; lees die gevallen na._`,
+      `_${total} beweringen: ${pct(tally.ondersteund, total)} ondersteund, ${pct(tally.deels, total)} deels, ${pct(tally.niet_ondersteund, total)} niet ondersteund. Controle van de beoordelaar: ${control.echt.goed}/${control.echt.totaal} letterlijke transcriptzinnen herkend als ondersteund, ${control.vreemd.goed}/${control.vreemd.totaal} beweringen uit een ander gesprek als niet ondersteund. "Niet ondersteund" kan ook betekenen dat de controle het juiste stuk transcript niet vond; lees die gevallen na._`,
       '',
       ...factLines,
     ]);
