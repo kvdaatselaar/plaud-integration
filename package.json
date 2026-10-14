@@ -31,6 +31,8 @@
     "kb:enrich": "tsx scripts/kb-enrich.ts",
     "kb:index": "tsx scripts/kb-index.ts",
     "kb:check": "tsx scripts/kb-check.ts",
+    "kb:zoek": "tsx scripts/kb-zoek.ts",
+    "kb:skill": "tsx scripts/kb-skill.ts",
     "kb": "npm run --silent kb:beheer; npm run --silent kb:enrich; npm run --silent kb:index",
     "kb:later": "zsh scripts/kb-later.sh",
     "typecheck": "tsc --noEmit"

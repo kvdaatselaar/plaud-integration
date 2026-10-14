@@ -325,6 +325,27 @@ De lijst staat in je kennisbankmap, niet in deze repository: hij bevat namen.
 Open Claude Code in de map `Kennisbank`. `CLAUDE.md` legt uit waar wat staat, hoe je zoekt, dat antwoorden
 een bron noemen en dat de ruwe transcripten en `_beheer/` buiten bereik blijven.
 
+**Vanuit elke sessie: de skill `/kennisbank`.** `npm run kb:skill` installeert een Claude Code-skill in
+`~/.claude/skills/kennisbank/`, met de paden van deze checkout en je kennisbank ingevuld. Daarna werkt
+`/kennisbank wat is de laatste stand van de migratie?` in elke sessie. Claude pakt de skill ook zelf als je
+vraagt wat er besproken, besloten of afgesproken is. De skill zoekt via `kb:zoek` (hieronder), leest eerst de
+pagina's per persoon, onderwerp, organisatie of reeks en daarna de gesprekken. Het antwoord bevat besluiten
+(nieuwste eerst, herzieningen gemarkeerd), openstaande actiepunten, open vragen, bronnen en wat er níét
+gevonden is. Ook de skill blijft buiten `_beheer/` en de ruwe transcripten. `kb:index` werkt hem bij. Wil je
+hem zelf aanpassen, haal dan de regel `gegenereerd door plaud-integration` weg; dan blijft hij staan.
+
+**Zoeken in de terminal: `npm run kb:zoek`.** Een zoekterm wordt eerst gekoppeld aan een persoon, onderwerp,
+organisatie of reeks, met alle aliassen en klankvarianten ("WSV", "Woonet"). Daarna zoekt het in de metadata
+en in de tekst; lange termen ook binnen samenstellingen ("datamigratieplan"). De gesprekken komen gerangschikt
+terug, met per gesprek waarom het meetelt. Alleen lezen, geen model.
+
+```bash
+npm run kb:zoek -- "Jan de Vries"                        # over Jan, met Jan, en waar zijn naam valt
+npm run kb:zoek -- WoonNet datamigratie --alle           # beide termen in hetzelfde gesprek
+npm run kb:zoek -- --van=2026-09-01 --tot=2026-09-30     # alle gesprekken in september
+npm run kb:zoek -- planning --type=stuurgroep --max=0    # alleen stuurgroepen, alle treffers
+```
+
 ## Quick install (one-liner)
 
 ```bash
@@ -551,10 +572,13 @@ scripts/
 ├── kb-aliassen.ts          # kennisbank: rapport van schrijfvarianten (klanksleutel)
 ├── kb-enrich.ts            # kennisbank stap 1: verrijken
 ├── kb-index.ts             # kennisbank stap 2: indexeren
+├── kb-zoek.ts              # kennisbank doorzoeken (aliassen, klankvarianten, metadata en tekst)
+├── kb-skill.ts             # Claude Code-skill /kennisbank installeren
 ├── kb-later.sh             # kennisbank-run later laten starten (bijv. 's nachts), alleen op netstroom
 └── run-sync.sh             # launchd wrapper (laadt nvm; KB_AUTO=on → ook kennisbank)
 knowledge/
 ├── CLAUDE.md               # sjabloon voor Kennisbank/CLAUDE.md
+├── skill/SKILL.md          # sjabloon voor de skill /kennisbank (~/.claude/skills/kennisbank)
 └── vocabulaire.template.yml
 launchd/
 └── local.plaud-integration.plist.template
@@ -586,5 +610,7 @@ uninstall.sh                   # launchd unload + state cleanup
 | `npm run kb:index` | Kennisbank stap 2: INDEX.md + pagina's per persoon en onderwerp |
 | `npm run kb` | Beheer, verrijken en indexeren na elkaar |
 | `npm run kb:check` | Kwaliteitscontrole: structuur, links, privacy en een feitencontrole op een steekproef |
+| `npm run kb:zoek -- <term>` | Kennisbank doorzoeken: gerangschikte gesprekken met de reden van de treffer |
+| `npm run kb:skill` | Claude Code-skill `/kennisbank` installeren (daarna houdt `kb:index` hem actueel) |
 | `npm run kb:later -- 20:00` | Volledige kennisbank-run vanaf 20:00, alleen op netstroom; dagelijkse sync wacht |
 | `npm run typecheck` | TypeScript check |
