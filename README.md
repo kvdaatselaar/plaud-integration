@@ -325,19 +325,36 @@ De lijst staat in je kennisbankmap, niet in deze repository: hij bevat namen.
 Open Claude Code in de map `Kennisbank`. `CLAUDE.md` legt uit waar wat staat, hoe je zoekt, dat antwoorden
 een bron noemen en dat de ruwe transcripten en `_beheer/` buiten bereik blijven.
 
-**Vanuit elke sessie: de skill `/kennisbank`.** `npm run kb:skill` installeert een Claude Code-skill in
-`~/.claude/skills/kennisbank/`, met de paden van deze checkout en je kennisbank ingevuld. Daarna werkt
-`/kennisbank wat is de laatste stand van de migratie?` in elke sessie. Claude pakt de skill ook zelf als je
-vraagt wat er besproken, besloten of afgesproken is. De skill zoekt via `kb:zoek` (hieronder), leest eerst de
-pagina's per persoon, onderwerp, organisatie of reeks en daarna de gesprekken. Het antwoord bevat besluiten
-(nieuwste eerst, herzieningen gemarkeerd), openstaande actiepunten, open vragen, bronnen en wat er níét
-gevonden is. Ook de skill blijft buiten `_beheer/` en de ruwe transcripten. `kb:index` werkt hem bij. Wil je
-hem zelf aanpassen, haal dan de regel `gegenereerd door plaud-integration` weg; dan blijft hij staan.
+**Overal: de skill `/kennisbank`.** `npm run kb:skill` zet een skill klaar die alles uit de kennisbank
+verzamelt over een persoon, onderwerp, organisatie, reeks of periode. Hij antwoordt met besluiten (nieuwste
+eerst, herzieningen gemarkeerd), openstaande actiepunten, open vragen, bronnen en wat er níét gevonden is.
 
-**Zoeken in de terminal: `npm run kb:zoek`.** Een zoekterm wordt eerst gekoppeld aan een persoon, onderwerp,
-organisatie of reeks, met alle aliassen en klankvarianten ("WSV", "Woonet"). Daarna zoekt het in de metadata
-en in de tekst; lange termen ook binnen samenstellingen ("datamigratieplan"). De gesprekken komen gerangschikt
-terug, met per gesprek waarom het meetelt. Alleen lezen, geen model.
+| Waar | Hoe hij erin komt | Hoe hij zoekt |
+|---|---|---|
+| Claude: chat, Cowork, web, telefoon en Claude Code | `kb:skill` maakt `~/.plaud-integration/kennisbank.skill`; upload dat bestand één keer in Claude (Skills) | Cowork en Claude Code lezen de map en gebruiken het zoekscript; chat, web en telefoon gaan via de Microsoft 365-connector |
+| Microsoft 365 Copilot Cowork | `kb:skill` schrijft hem naar `Documents/Cowork/skills/kennisbank` in je OneDrive | via de Microsoft 365-zoekfuncties van Copilot |
+| Alleen Claude Code op deze Mac | `npm run kb:skill -- --lokaal` (`~/.claude/skills/kennisbank`) | het zoekscript |
+
+Zonder bestandstoegang (chat, web, telefoon, Copilot) kan het zoekscript niet draaien. De skill begint dan bij
+`INDEX.md`, waar elke persoon, organisatie en elk onderwerp ook met zijn schrijfvarianten staat ("WSV",
+voornamen), en volgt van daar de links. In Cowork deel je de map `Kennisbank` zelf, niet de map erboven: daar
+staan ook de ruwe transcripten.
+
+`kb:index` houdt de geïnstalleerde kopieën en het pakket actueel. Verandert het pakket, dan meldt de run dat
+je het opnieuw moet uploaden. Wil je een kopie zelf aanpassen, haal dan de regel
+`gegenereerd door plaud-integration` weg; dan blijft hij staan.
+
+**Let op bij Microsoft 365.** De zoekfunctie van de Microsoft 365-connector en van Copilot doorzoekt je hele
+OneDrive, dus ook `TranscriptArchive`, `AudioArchive` en OneNote, met de ruwe gesprekken en klantgegevens. De
+skill opent en gebruikt alleen bestanden in de kennisbank, maar dat is een instructie aan het model en geen
+technische afscherming: zoekresultaten van buiten de map kunnen in het antwoord van de zoekfunctie
+meekomen. Wil je dat uitsluiten, zet dan `TRANSCRIPTS_DIR` en `AUDIO_DIR` op een map buiten OneDrive.
+
+**Zoeken in de terminal: `npm run kb:zoek`.** Hetzelfde zoekscript als in de skill
+(`knowledge/skill/scripts/zoek.py`, alleen Python-standaardbibliotheek). Een zoekterm wordt eerst gekoppeld aan
+een persoon, onderwerp, organisatie of reeks, met alle aliassen en klankvarianten ("WSV", "Woonet"). Daarna
+zoekt het in de metadata en in de tekst; lange termen ook binnen samenstellingen ("datamigratieplan"). De
+gesprekken komen gerangschikt terug, met per gesprek waarom het meetelt. Alleen lezen, geen model.
 
 ```bash
 npm run kb:zoek -- "Jan de Vries"                        # over Jan, met Jan, en waar zijn naam valt
@@ -572,13 +589,13 @@ scripts/
 ├── kb-aliassen.ts          # kennisbank: rapport van schrijfvarianten (klanksleutel)
 ├── kb-enrich.ts            # kennisbank stap 1: verrijken
 ├── kb-index.ts             # kennisbank stap 2: indexeren
-├── kb-zoek.ts              # kennisbank doorzoeken (aliassen, klankvarianten, metadata en tekst)
-├── kb-skill.ts             # Claude Code-skill /kennisbank installeren
+├── kb-zoek.ts              # kennisbank doorzoeken (roept knowledge/skill/scripts/zoek.py aan)
+├── kb-skill.ts             # skill /kennisbank voor Claude en Copilot Cowork klaarzetten
 ├── kb-later.sh             # kennisbank-run later laten starten (bijv. 's nachts), alleen op netstroom
 └── run-sync.sh             # launchd wrapper (laadt nvm; KB_AUTO=on → ook kennisbank)
 knowledge/
 ├── CLAUDE.md               # sjabloon voor Kennisbank/CLAUDE.md
-├── skill/SKILL.md          # sjabloon voor de skill /kennisbank (~/.claude/skills/kennisbank)
+├── skill/                  # skill /kennisbank: SKILL.md (sjabloon) en scripts/zoek.py (zoeken)
 └── vocabulaire.template.yml
 launchd/
 └── local.plaud-integration.plist.template
@@ -611,6 +628,6 @@ uninstall.sh                   # launchd unload + state cleanup
 | `npm run kb` | Beheer, verrijken en indexeren na elkaar |
 | `npm run kb:check` | Kwaliteitscontrole: structuur, links, privacy en een feitencontrole op een steekproef |
 | `npm run kb:zoek -- <term>` | Kennisbank doorzoeken: gerangschikte gesprekken met de reden van de treffer |
-| `npm run kb:skill` | Claude Code-skill `/kennisbank` installeren (daarna houdt `kb:index` hem actueel) |
+| `npm run kb:skill` | Skill `/kennisbank` klaarzetten: Copilot Cowork (OneDrive) en een pakket voor Claude; `-- --lokaal` ook voor Claude Code |
 | `npm run kb:later -- 20:00` | Volledige kennisbank-run vanaf 20:00, alleen op netstroom; dagelijkse sync wacht |
 | `npm run typecheck` | TypeScript check |

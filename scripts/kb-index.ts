@@ -5,7 +5,7 @@ import { kbConfig, GENERATED_MARKER } from '../src/kb/config.js';
 import { loadVocabulary } from '../src/kb/vocabulary.js';
 import { buildIndex } from '../src/kb/index-builder.js';
 import { writeIfChanged } from '../src/kb/files.js';
-import { installSkill } from '../src/kb/skill.js';
+import { installSkills } from '../src/kb/skill.js';
 
 // Step 2 — indexeren: INDEX.md plus a page per person and per topic, rebuilt
 // from the conversation files. No network, no model; safe to run any time.
@@ -29,7 +29,7 @@ function main(): void {
   }
   const vocab = loadVocabulary();
   const r = buildIndex(vocab);
-  const files = [installClaudeMd(), installSkill(false)].filter(Boolean).join('; ');
+  const files = [installClaudeMd(), ...installSkills({ create: false })].join('; ');
   console.log(`Index: ${r.conversations} gesprekken, ${r.topics} onderwerpen, ${r.organisations} organisaties, ${r.persons} personen, ${r.series} reeksen — ${r.written} pagina('s) bijgewerkt, ${r.removed} verwijderd; ${files}.`);
   console.log(`Kennisbank: ${kbConfig.dir}`);
 }

@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import { kbConfig, GENERATED_MARKER } from './config.js';
 import { listMarkdown, monthLabel, slugify, writeIfChanged } from './files.js';
 import { parseConversationFile } from './conversation.js';
-import type { Vocabulary } from './vocabulary.js';
+import { normalizeKey, type Vocabulary } from './vocabulary.js';
 
 export interface Action {
   done: boolean;
@@ -280,6 +280,9 @@ function indexPage(
   const byMonth = groupBy(convs, c => [c.datum.slice(0, 7)]);
   const range = convs.length ? `${convs[convs.length - 1].datum} – ${convs[0].datum}` : '—';
   const count = (m: Map<string, IndexedConversation[]>, k: string) => m.get(k)?.length ?? 0;
+  // Variants on the index itself, so a reader without kb:zoek (Microsoft 365, Copilot) can resolve "WSV" or a first name.
+  const aka = (v?: { aliassen: string[] }) => (v?.aliassen.length ? v.aliassen.slice(0, 6).join(', ') + (v.aliassen.length > 6 ? ', …' : '') : '');
+  const akaSuffix = (v?: { aliassen: string[] }) => (aka(v) ? ` — ook: ${aka(v)}` : '');
   const last = (m: Map<string, IndexedConversation[]>, k: string) => m.get(k)?.[0]?.datum ?? '—';
 
   // Main topics in vocabulary order, with their used sub-topics; then topics outside the hierarchy.
@@ -287,9 +290,9 @@ function indexPage(
   const known = new Set(vocab.topics.map(t => t.naam));
   const topicLines = [
     ...mains.flatMap(m => [
-      `- ${topicLink(m.naam, '')} (${count(pages.topics, m.naam)}, laatst ${last(pages.topics, m.naam)})`,
+      `- ${topicLink(m.naam, '')} (${count(pages.topics, m.naam)}, laatst ${last(pages.topics, m.naam)})${akaSuffix(m)}`,
       ...vocab.topics.filter(t => t.parent === m.naam && pages.topics.has(t.naam))
-        .map(t => `  - ${topicLink(t.naam, '')} (${count(pages.topics, t.naam)})`),
+        .map(t => `  - ${topicLink(t.naam, '')} (${count(pages.topics, t.naam)})${akaSuffix(t)}`),
     ]),
     ...[...pages.topics.keys()].filter(t => !known.has(t)).map(t => `- ${topicLink(t, '')} (${count(pages.topics, t)})`),
   ];
@@ -312,17 +315,17 @@ function indexPage(
     '',
     '## Organisaties',
     '',
-    '| Organisatie | Soort | Gesprekken | Laatst |',
-    '|---|---|---:|---|',
+    '| Organisatie | Soort | Gesprekken | Laatst | Ook bekend als |',
+    '|---|---|---:|---|---|',
     ...[...pages.orgs].sort((a, b) => b[1].length - a[1].length)
-      .map(([o, cs]) => `| ${cell(orgLink(o, ''))} | ${vocab.matchOrganisation(o)?.soort ?? ''} | ${cs.length} | ${cs[0].datum} |`),
+      .map(([o, cs]) => `| ${cell(orgLink(o, ''))} | ${vocab.matchOrganisation(o)?.soort ?? ''} | ${cs.length} | ${cs[0].datum} | ${cell(aka(vocab.matchOrganisation(o)))} |`),
     '',
     '## Personen',
     '',
-    '| Persoon | Organisatie | Gesprekken | Waarvan over | Laatst |',
-    '|---|---|---:|---:|---|',
+    '| Persoon | Organisatie | Gesprekken | Waarvan over | Laatst | Ook bekend als |',
+    '|---|---|---:|---:|---|---|',
     ...[...pages.persons].sort((a, b) => b[1].length - a[1].length)
-      .map(([p, cs]) => `| ${cell(personLink(p, ''))} | ${cell(vocab.matchPerson(p)?.organisatie ?? '')} | ${cs.length} | ${cs.filter(c => c.over === p).length} | ${cs[0].datum} |`),
+      .map(([p, cs]) => `| ${cell(personLink(p, ''))} | ${cell(vocab.matchPerson(p)?.organisatie ?? '')} | ${cs.length} | ${cs.filter(c => c.over === p).length} | ${cs[0].datum} | ${cell(aka(vocab.matchPerson(p)))} |`),
     '',
     '## Reeksen',
     '',
@@ -361,8 +364,24 @@ function syncDir(dir: string, pages: Map<string, string>): { written: number; re
 const pageFiles = <T>(m: Map<string, T>, render: (name: string, v: T) => string) =>
   new Map([...m].map(([name, v]) => [`${slugify(name)}.md`, render(name, v)]));
 
+/**
+ * An action that comes back in later meetings (a recurring series repeats its open points) counts once, with the
+ * state of its newest mention: ticked there means done everywhere, still open means listed once, from the newest.
+ */
+function supersedeRepeatedActions(convs: IndexedConversation[]): void {
+  const seen = new Set<string>();
+  for (const c of convs) {
+    for (const a of c.acties) {
+      const key = `${a.owner ?? ''}|${normalizeKey(a.text.replace(/ _\(deadline: [^)]*\)_$/, ''))}`;
+      if (seen.has(key)) a.done = true;
+      else seen.add(key);
+    }
+  }
+}
+
 export function buildIndex(vocab: Vocabulary): { conversations: number; persons: number; topics: number; organisations: number; series: number; written: number; removed: number } {
   const convs = loadConversations();
+  supersedeRepeatedActions(convs);
   const pages = {
     persons: groupBy(convs, c => c.personen),
     // A main-topic page covers all its sub-topics.
