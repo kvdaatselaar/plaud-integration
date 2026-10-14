@@ -1,7 +1,7 @@
 import { Document, Scalar, parse } from 'yaml';
 import { kbConfig, GENERATED_MARKER } from './config.js';
 import { safeFileName, slugify, splitFrontmatter } from './files.js';
-import { isPrivateTerm, redact } from './redact.js';
+import { dropHealthOrPrivate, isHealthOrPrivate, isPrivateTerm, redact } from './redact.js';
 import { normalizeKey, type Vocabulary } from './vocabulary.js';
 import type { Extraction } from './extract.js';
 import type { SourceTranscript } from './sources.js';
@@ -183,8 +183,11 @@ export function buildConversation(src: SourceTranscript, ex: Extraction, vocab: 
     gegenereerd: `${GENERATED_MARKER} (kb:enrich)`,
   };
 
-  const bullets = (items: string[], empty: string) => (items.length ? items.map(i => `- ${clean(i)}`).join('\n') : `_${empty}_`);
-  const actionLines = ex.actiepunten.map(a => {
+  const bullets = (all: string[], empty: string) => {
+    const items = all.filter(i => !isHealthOrPrivate(i));
+    return items.length ? items.map(i => `- ${clean(i)}`).join('\n') : `_${empty}_`;
+  };
+  const actionLines = ex.actiepunten.filter(a => !isHealthOrPrivate(a.actie)).map(a => {
     const owner = a.eigenaar ? vocab.matchPerson(a.eigenaar)?.naam : undefined;
     const text = clean(a.actie);
     const deadline = a.deadline ? ` _(deadline: ${clean(a.deadline)})_` : '';
@@ -209,7 +212,7 @@ export function buildConversation(src: SourceTranscript, ex: Extraction, vocab: 
     '',
     '## Samenvatting',
     '',
-    clean(ex.samenvatting) || '_Geen samenvatting._',
+    clean(dropHealthOrPrivate(ex.samenvatting)) || '_Geen samenvatting._',
     '',
     '## Besluiten',
     '',

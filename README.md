@@ -247,6 +247,26 @@ morgen, als dat tijdstip al voorbij is), verrijkt alleen op netstroom en draait 
 de lader staan; de voortgang staat in `~/.plaud-integration/kb-later.log`. Annuleren:
 `pkill -f 'scripts/kb-(later|enrich)'`. Wat al verwerkt is blijft bewaard.
 
+### Kwaliteitscontrole (`npm run kb:check`)
+
+Controleert de kennisbank lokaal; in de terminal komen alleen aantallen, de details (welk gesprek, welke zin)
+staan in `_beheer/controle.md`.
+
+- **Structuur:** verplichte velden, typen, onderwerpen, personen en organisaties die op de lijst staan,
+  bronbestand aanwezig, alle secties, samenvatting niet leeg.
+- **Links en vindbaarheid:** geen kapotte links; elk gesprek staat op de pagina van al zijn personen,
+  onderwerpen, organisaties en reeks; elke pagina is bereikbaar vanuit `INDEX.md`.
+- **Privacy (patronen):** e-mailadressen, telefoonnummers, IBAN, BSN, adressen, en zinnen over gezondheid of
+  privéleven (mogen niet voorkomen); HR-termen als beloningsbeleid worden ter info geteld.
+- **Steekproef met het lokale model** (standaard 10 gesprekken, `--steekproef=20`, `--seed=7` voor dezelfde
+  steekproef): elke bewering (samenvattingszinnen, besluiten, actiepunten, open vragen) wordt naast de best
+  passende stukken van het transcript gelegd: ondersteund, deels of niet. Daarnaast een privacyoordeel per
+  gesprek. `--zonder-model` slaat dit deel over.
+
+Vangnetten in het verrijken zelf: zinnen en punten over gezondheid of privéleven vallen altijd weg; een
+samenvatting van een paar woorden bij een echt gesprek wordt bij de volgende run één keer opnieuw gemaakt;
+lange gesprekken worden in stappen samengevoegd zodat elke modelaanroep klein blijft.
+
 ### De vaste lijst: twee lagen, automatisch onderhouden
 
 Alleen wat op de vaste lijst staat komt in de kennisbank. De lijst onderhoudt zichzelf:
@@ -565,5 +585,6 @@ uninstall.sh                   # launchd unload + state cleanup
 | `npm run kb:enrich` | Kennisbank stap 1: gespreksbestanden maken (lokaal taalmodel) |
 | `npm run kb:index` | Kennisbank stap 2: INDEX.md + pagina's per persoon en onderwerp |
 | `npm run kb` | Beheer, verrijken en indexeren na elkaar |
+| `npm run kb:check` | Kwaliteitscontrole: structuur, links, privacy en een feitencontrole op een steekproef |
 | `npm run kb:later -- 20:00` | Volledige kennisbank-run vanaf 20:00, alleen op netstroom; dagelijkse sync wacht |
 | `npm run typecheck` | TypeScript check |

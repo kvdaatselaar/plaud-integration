@@ -30,6 +30,7 @@
     "kb:aliassen": "tsx scripts/kb-aliassen.ts",
     "kb:enrich": "tsx scripts/kb-enrich.ts",
     "kb:index": "tsx scripts/kb-index.ts",
+    "kb:check": "tsx scripts/kb-check.ts",
     "kb": "npm run --silent kb:beheer; npm run --silent kb:enrich; npm run --silent kb:index",
     "kb:later": "zsh scripts/kb-later.sh",
     "typecheck": "tsc --noEmit"

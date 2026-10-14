@@ -47,7 +47,16 @@ interface CacheEntry {
   model: string;
   extraction: Extraction;
   createdAt: string;
+  /** Set when this extraction is the redo of an unusable one: it is not redone again. */
+  redo?: boolean;
 }
+
+/** Partial results per merge call; a long meeting is merged in stages so each call stays small. */
+const MERGE_BUDGET_CHARS = 24_000;
+
+/** A conversation of some substance whose summary is just a few words: extraction went wrong. */
+const unusable = (ex: Extraction, src: SourceTranscript) =>
+  src.transcript.length > 5000 && ex.samenvatting.split(/\s+/).filter(Boolean).length < 25;
 
 /** Hard caps, enforced by the model's output grammar and again in normalize(). */
 const MAX = { onderwerpen: 5, besluiten: 12, actiepunten: 15, open_vragen: 10, personen: 25, overige_personen: 40, organisaties: 10, kernpunten: 8 };
@@ -271,8 +280,29 @@ Transcript (deel ${i + 1}):
 ${part}
 """`, PART_SCHEMA, {}));
   }
+  // Merge in stages while the partial results don't fit comfortably in one call.
+  let merged = partials;
+  while (merged.length > 1 && JSON.stringify(merged).length > MERGE_BUDGET_CHARS) {
+    const groups: unknown[][] = [[]];
+    for (const p of merged) {
+      const current = groups[groups.length - 1];
+      if (current.length && JSON.stringify([...current, p]).length > MERGE_BUDGET_CHARS) groups.push([p]);
+      else current.push(p);
+    }
+    if (groups.length === merged.length) break; // every part is large on its own; nothing left to group
+    const next: unknown[] = [];
+    for (const g of groups) {
+      next.push(g.length === 1 ? g[0] : await chatJson(system, `${header(src)}
+Hieronder staan de deelresultaten (JSON) van ${g.length} opeenvolgende delen van dit gesprek, in volgorde.
+Combineer ze tot één deelresultaat met dezelfde velden: ontdubbel, houd de belangrijkste kernpunten (maximaal 8) en laat een open vraag weg als die later beantwoord is.
+
+${JSON.stringify(g)}`, PART_SCHEMA, {}));
+    }
+    merged = next;
+  }
+
   const raw = await chatJson<RawExtraction>(system, `${header(src)}
-Hieronder staan de deelresultaten (JSON) van alle ${parts.length} delen van dit gesprek, in volgorde.
+Hieronder staan de deelresultaten (JSON) van alle ${parts.length} delen van dit gesprek, in volgorde${merged.length < parts.length ? ' (al per groep samengevoegd)' : ''}.
 Combineer ze tot één resultaat:
 - samenvatting: 3-8 zinnen lopende tekst over het hele gesprek
 ${typeLine}
@@ -281,7 +311,7 @@ ${typeLine}
 - organisaties: ontdubbeld; verschilt de relatie tussen delen, kies de best onderbouwde
 - onderwerpen: maximaal 5 voor het hele gesprek, zo specifiek mogelijk uit de onderwerpenlijst
 
-${JSON.stringify(partials)}`, schema, MOCK);
+${JSON.stringify(merged)}`, schema, MOCK);
   return normalize(raw, vocab.types);
 }
 
@@ -291,13 +321,18 @@ function cachePath(hash: string): string {
 
 export function cachedExtraction(src: SourceTranscript): Extraction | undefined {
   const entry = readJson<CacheEntry | null>(cachePath(src.hash), null);
-  return entry && entry.version === PROMPT_VERSION ? entry.extraction : undefined;
+  if (!entry || entry.version !== PROMPT_VERSION) return undefined;
+  // An unusable result is redone once, automatically.
+  if (!entry.redo && unusable(entry.extraction, src)) return undefined;
+  return entry.extraction;
 }
 
 /** Cached per transcript content: unchanged transcripts never hit the model again. */
 export async function getExtraction(src: SourceTranscript, vocab: Vocabulary, force = false): Promise<Extraction> {
   const cached = force ? undefined : cachedExtraction(src);
   if (cached) return cached;
+  const previous = readJson<CacheEntry | null>(cachePath(src.hash), null);
+  const redo = !!previous && previous.version === PROMPT_VERSION && unusable(previous.extraction, src);
   const extraction = await extract(src, vocab);
   if (kbConfig.llm.provider !== 'mock') {
     writeJson(cachePath(src.hash), {
@@ -305,6 +340,7 @@ export async function getExtraction(src: SourceTranscript, vocab: Vocabulary, fo
       model: kbConfig.llm.model,
       extraction,
       createdAt: new Date().toISOString(),
+      ...(redo ? { redo: true } : {}),
     } satisfies CacheEntry);
   }
   return extraction;

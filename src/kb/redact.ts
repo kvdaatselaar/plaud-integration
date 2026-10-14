@@ -44,3 +44,19 @@ export function redact(text: string, unlistedNames: string[]): string {
 const PRIVATE_TERMS = /\b(ziek\w*|ziekenhuis|chemo\w*|kanker|diagnose|medisch\w*|therapie|burn-?out|zwanger\w*|overlij\w*|rouw|begrafenis|scheiding|privé\w*|gezondheid|herstel|pensioen\w*|salaris\w*|beloning\w*|werkdruk|afscheid|ontslag|verzuim|verlof|vakantie\w*|vacantie\w*)\b/i;
 
 export const isPrivateTerm = (term: string): boolean => PRIVATE_TERMS.test(term);
+
+/**
+ * Health and private life of anyone: a sentence or point about it never reaches the knowledge base,
+ * whatever the model wrote. ("Financiële gezondheid" and the like are business, not health.)
+ */
+const HEALTH_OR_PRIVATE = /\b(ziek\w*|zieke|ziekte\w*|chemo\w*|kanker\w*|tumor\w*|diagnose\w*|medisch\w*|medicatie|medicijn\w*|therapie\w*|burn-?out|overspannen|zwanger\w*|bevalling|overleden|overlijden|rouw|rouwen|begrafenis|echtscheiding|herstellende|revalid\w*)\b|(?<!financiële |financiele |organisatorische )\bgezondheid\b/i;
+
+export const isHealthOrPrivate = (text: string): boolean => HEALTH_OR_PRIVATE.test(text);
+
+/** Drops the sentences about health or private life from a running text. */
+export function dropHealthOrPrivate(text: string): string {
+  return text
+    .split(/(?<=[.!?])\s+/)
+    .filter(sentence => !isHealthOrPrivate(sentence))
+    .join(' ');
+}

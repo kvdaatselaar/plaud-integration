@@ -43,7 +43,8 @@ export async function calendarPeople(token: string, sources: SourceTranscript[])
       if (e.isCancelled) continue;
       const people = [...(e.attendees ?? []).filter((a: any) => a.type !== 'resource'), { emailAddress: e.organizer?.emailAddress }]
         .map((a: any) => ({ name: String(a.emailAddress?.name ?? '').trim(), address: String(a.emailAddress?.address ?? '').toLowerCase() }))
-        .filter(a => a.name && a.address.includes('@'));
+        // Without a display name, Outlook shows the address as name: no person to put on the list.
+        .filter(a => a.name && !a.name.includes('@') && a.address.includes('@'));
       events.push({ startMs: ms(e.start.dateTime), endMs: ms(e.end.dateTime), attendees: [...new Map(people.map(p => [p.address, p])).values()] });
     }
     next = page['@odata.nextLink'];

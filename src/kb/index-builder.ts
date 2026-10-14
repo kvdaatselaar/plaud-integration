@@ -178,7 +178,8 @@ function topicPage(name: string, convs: IndexedConversation[], vocab: Vocabulary
     ...(facts ? [`${facts}  `] : []),
     span(convs),
     '',
-    ...(subs.length ? ['## Subonderwerpen', '', ...subCounts.map(([n, k]) => `- ${topicLink(n, '../')} (${k})`), ''] : []),
+    // A sub-topic gets a page once a conversation is filed under it; until then no link.
+    ...(subs.length ? ['## Subonderwerpen', '', ...subCounts.map(([n, k]) => (k ? `- ${topicLink(n, '../')} (${k})` : `- ${n} (nog geen gesprekken)`)), ''] : []),
     '## Besluiten',
     '',
     '_Uit gesprekken over dit onderwerp, nieuwste eerst._',
