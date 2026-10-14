@@ -258,10 +258,15 @@ staan in `_beheer/controle.md`.
   onderwerpen, organisaties en reeks; elke pagina is bereikbaar vanuit `INDEX.md`.
 - **Privacy (patronen):** e-mailadressen, telefoonnummers, IBAN, BSN, adressen, en zinnen over gezondheid of
   privéleven (mogen niet voorkomen); HR-termen als beloningsbeleid worden ter info geteld.
+- **Verankering (zonder model, alle gesprekken):** welk deel van de woorden van elke bewering in het eigen
+  transcript voorkomt, naast dezelfde maat voor beweringen uit een ander gesprek. Beweringen onder 20% staan in
+  het rapport om na te lezen (vaak een vertaling van een Engels gesprek).
 - **Steekproef met het lokale model** (standaard 10 gesprekken, `--steekproef=20`, `--seed=7` voor dezelfde
   steekproef): elke bewering (samenvattingszinnen, besluiten, actiepunten, open vragen) wordt naast de best
   passende stukken van het transcript gelegd: ondersteund, deels of niet. Daarnaast een privacyoordeel per
-  gesprek. `--zonder-model` slaat dit deel over.
+  gesprek. Met controlebeweringen (een letterlijke zin uit het transcript, een bewering uit een ander gesprek)
+  zie je hoe betrouwbaar het model als beoordelaar is; gemma3:12b is mild, dus "deels" zegt weinig.
+  `--zonder-model` slaat dit deel over.
 
 Vangnetten in het verrijken zelf: zinnen en punten over gezondheid of privéleven vallen altijd weg; een
 samenvatting van een paar woorden bij een echt gesprek wordt bij de volgende run één keer opnieuw gemaakt;

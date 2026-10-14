@@ -218,7 +218,37 @@ async function main(): Promise<void> {
   log(`Privacy (patronen): ${privacyHits.length} treffer(s)${perCategory.size ? ` — ${[...perCategory].map(([k, v]) => `${k} ${v}`).join(', ')}` : ''}; namen weggelaten als [naam]: ${redactedNames}`);
   section('Privacy: patronen', privacyHits);
 
-  // ── 4. Model checks on a random sample ──
+  // ── 4. Grounding without a model: share of a claim's words that occur in its own transcript,
+  //       compared with claims from another conversation (the baseline for "unrelated") ──
+  const gWords = (t: string) => normalizeKey(t).split(' ').filter(w => w.length >= 5 && !STOP.has(w));
+  const grounded: { c: Conversation; claim: string; score: number }[] = [];
+  const baseline: number[] = [];
+  const withSource = convs.filter(c => (sources.get(c.fm.bronbestand)?.transcript.length ?? 0) > 5000);
+  const vocabOf = new Map(withSource.map(c => {
+    const ws = gWords(sources.get(c.fm.bronbestand)!.transcript);
+    return [c, new Set([...ws, ...ws.map(w => w.slice(0, 6))])] as const;
+  }));
+  const claimsOf = (c: Conversation) => [...sentences(c.sections.Samenvatting), ...bullets(c.sections.Besluiten), ...bullets(c.sections.Actiepunten), ...bullets(c.sections['Open vragen'])]
+    .filter(t => gWords(t).length >= 4);
+  const overlap = (claim: string, vocab: Set<string>) => {
+    const w = gWords(claim);
+    return w.filter(x => vocab.has(x) || vocab.has(x.slice(0, 6))).length / w.length;
+  };
+  withSource.forEach((c, i) => {
+    const vocab = vocabOf.get(c)!;
+    for (const claim of claimsOf(c)) grounded.push({ c, claim, score: overlap(claim, vocab) });
+    for (const claim of claimsOf(withSource[(i + 7) % withSource.length]).slice(0, 10)) baseline.push(overlap(claim, vocab));
+  });
+  const median = (a: number[]) => [...a].sort((x, y) => x - y)[Math.floor((a.length - 1) / 2)] ?? 0;
+  const low = grounded.filter(g => g.score < 0.2);
+  log(`Verankering (zonder model, ${withSource.length} gesprekken): beweringen delen gemiddeld ${Math.round(100 * median(grounded.map(g => g.score)))}% van hun woorden met hun eigen transcript, tegen ${Math.round(100 * median(baseline))}% bij beweringen uit een ander gesprek; ${low.length} beweringen onder 20% (nalezen)`);
+  section('Verankering: beweringen met weinig woorden uit het eigen transcript', [
+    '_Vaak een vertaling (Engels gesprek, Nederlandse samenvatting) of een samenvattende formulering; lees ze na._',
+    '',
+    ...low.map(g => `- ${fileLink(g.c.rel)} (${Math.round(100 * g.score)}%): ${g.claim}`),
+  ]);
+
+  // ── 5. Model checks on a random sample ──
   if (!NO_MODEL) {
     await checkLlm();
     const pool = convs.filter(c => sources.has(c.fm.bronbestand));
