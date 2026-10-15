@@ -247,6 +247,26 @@ morgen, als dat tijdstip al voorbij is), verrijkt alleen op netstroom en draait 
 de lader staan; de voortgang staat in `~/.plaud-integration/kb-later.log`. Annuleren:
 `pkill -f 'scripts/kb-(later|enrich)'`. Wat al verwerkt is blijft bewaard.
 
+### Een vraag aan het transcript (`npm run kb:vraag`)
+
+Een samenvatting van een vergadering van drie uur is kort. Wat de samenvatting weglaat, haal je met een vraag
+aan het lokale model, dat het ruwe transcript op je Mac leest:
+
+```bash
+npm run kb:vraag -- "<gespreksbestand, id of deel van de titel>" "Wat is er afgesproken over de go-live?"
+```
+
+Het model leest het hele transcript in delen van ongeveer een half uur vergadering en voegt de antwoorden
+samen: een antwoord, de punten met tijdstip, en wat uit het transcript niet duidelijk wordt. Het antwoord gaat
+door dezelfde privacyregels en filters als de samenvattingen (geen identificerende gegevens, namen buiten de
+vaste lijst als `[naam]`, niets over gezondheid of privé); het transcript zelf verlaat je Mac niet. Reken op
+ongeveer een minuut per half uur vergadering. De `/kennisbank`-skill en `CLAUDE.md` gebruiken dit in Claude
+Code zelf als een samenvatting tekortschiet; in Claude op het web, op de telefoon en in Copilot kan dat niet.
+
+Waarom niet de ruwe transcripten geredigeerd aan Claude geven: spraakherkenning verhaspelt namen, en
+klantdetails, bedragen en afspraken staan in gewone zinnen. Een redactie mist daarvan altijd iets, en in een
+letterlijk transcript lekt dat dan woordelijk. Een antwoord op één vraag laat veel minder door.
+
 ### Kwaliteitscontrole (`npm run kb:check`)
 
 Controleert de kennisbank lokaal; in de terminal komen alleen aantallen, de details (welk gesprek, welke zin)
@@ -631,6 +651,7 @@ uninstall.sh                   # launchd unload + state cleanup
 | `npm run kb:enrich` | Kennisbank stap 1: gespreksbestanden maken (lokaal taalmodel) |
 | `npm run kb:index` | Kennisbank stap 2: INDEX.md + pagina's per persoon en onderwerp |
 | `npm run kb` | Beheer, verrijken en indexeren na elkaar |
+| `npm run kb:vraag -- "<gesprek>" "<vraag>"` | Een vraag over één gesprek, beantwoord door het lokale model uit het ruwe transcript |
 | `npm run kb:check` | Kwaliteitscontrole: structuur, links, privacy en een feitencontrole op een steekproef |
 | `npm run kb:zoek -- <term>` | Kennisbank doorzoeken: gerangschikte gesprekken met de reden van de treffer |
 | `npm run kb:skill` | Skill `/kennisbank` klaarzetten: Copilot Cowork (OneDrive) en een pakket voor Claude; `-- --lokaal` ook voor Claude Code |

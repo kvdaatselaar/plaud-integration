@@ -19,7 +19,8 @@ function installClaudeMd(): string {
   if (fs.existsSync(target) && !fs.readFileSync(target, 'utf-8').includes(GENERATED_MARKER)) {
     return 'CLAUDE.md eigen versie, niet overschreven';
   }
-  return writeIfChanged(target, fs.readFileSync(TEMPLATE, 'utf-8')) ? 'CLAUDE.md bijgewerkt' : 'CLAUDE.md actueel';
+  const text = fs.readFileSync(TEMPLATE, 'utf-8').replaceAll('{{PROJECT_DIR}}', path.resolve(path.dirname(TEMPLATE), '..'));
+  return writeIfChanged(target, text) ? 'CLAUDE.md bijgewerkt' : 'CLAUDE.md actueel';
 }
 
 function main(): void {

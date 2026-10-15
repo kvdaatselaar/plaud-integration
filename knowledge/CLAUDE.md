@@ -66,12 +66,22 @@ klantgesprek, strategiesessie, kennismaking, overleg, overig.
 7. Onderscheid wat **besloten** is (Besluiten), wat alleen **besproken** is (Samenvatting) en wat nog
    **open** staat (Open vragen, `- [ ]`).
 8. Staat het antwoord niet in de kennisbank, zeg dat dan. Vul niet aan met aannames.
+9. Is een gesprek relevant maar zegt de samenvatting te weinig (vaak bij lange vergaderingen), stel de vraag
+   dan aan het lokale model, dat het ruwe transcript op deze Mac leest en een gefilterd antwoord geeft:
+   ```bash
+   npm --prefix "{{PROJECT_DIR}}" run --silent kb:vraag -- "<pad van het gespreksbestand>" "<concrete vraag>"
+   ```
+   Eén concrete vraag per keer. Het kost ongeveer een minuut per half uur vergadering (drie uur ≈ 7 minuten):
+   start het op de achtergrond en meld de gebruiker dat het loopt. Noem de uitkomst als bron
+   "uit het transcript (lokaal model)", met de tijdstippen. Vraag het eerst als je dit voor meer dan drie
+   gesprekken wilt doen.
 
 ## Grenzen
 
 - Lees alleen bestanden in deze map, en niet in `_beheer/`.
-- Open **niet** de ruwe transcripten of audio. Het veld `bronbestand` verwijst naar het transcriptarchief;
-  volg dat niet. Daar staan onbewerkte gesprekken met klantgegevens.
+- Open **niet** zelf de ruwe transcripten of audio. Het veld `bronbestand` verwijst naar het transcriptarchief;
+  volg dat niet. Daar staan onbewerkte gesprekken met klantgegevens, en die gaan niet naar Claude. Wat je uit
+  een transcript nodig hebt, vraag je via `kb:vraag` (punt 9): dan leest het lokale model het transcript.
 - Neem geen gevoelige klantgegevens op in antwoorden: geen persoonsgegevens van huurders of medewerkers van
   klanten, geen contactgegevens, geen klantspecifieke bedragen of contractvoorwaarden. `[naam]` in een tekst
   is een bewust weggelaten naam van iemand buiten de vaste lijst; probeer die niet te achterhalen.

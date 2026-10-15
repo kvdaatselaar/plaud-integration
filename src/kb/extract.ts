@@ -115,6 +115,14 @@ const finalSchema = (types: string[]) => ({
   required: ['samenvatting', 'type', 'besluiten', 'actiepunten', 'open_vragen', 'personen', 'overige_personen', 'onderwerpen', 'organisaties', 'over_persoon'],
 });
 
+/** The privacy rules every prompt that sees a raw transcript carries (extraction and kb:vraag). */
+export const PRIVACY_RULES = `PRIVACY (strikt, gaat boven volledigheid):
+- Neem geen gevoelige klantgegevens op: niets over huurders, bewoners, eindgebruikers of individuele medewerkers van klanten (namen, adressen, contactgegevens, geboortedata, BSN, IBAN, inkomen, gezondheid, klachten of incidenten over personen).
+- Noem een persoon in teksten alleen bij naam als die op de personenlijst staat; beschrijf anderen met hun rol ("de projectleider van de corporatie").
+- Geen bedragen, tarieven of contractvoorwaarden die bij een specifieke klant horen; beschrijf ze algemeen ("prijsafspraak besproken").
+- Over wie dan ook, ook collega's: geen gezondheid, privé- of gezinsomstandigheden, salarisbedragen of beoordelingsscores. Leg bij 1-op-1's en ontwikkelgesprekken alleen werkafspraken, doelen, feedbackthema's en acties vast.
+- Geen wachtwoorden, sleutels, interne URL's of details van beveiligingslekken.`;
+
 function systemPrompt(vocab: Vocabulary): string {
   const aliases = (a: string[]) => (a.length ? ` (ook: ${a.join(', ')})` : '');
   const persons = vocab.persons.length
@@ -134,12 +142,7 @@ function systemPrompt(vocab: Vocabulary): string {
   const owner = vocab.owner ? `De eigenaar van de kennisbank is ${vocab.owner.naam}.` : '';
   return `Je bent notulist bij Zig, een softwareleverancier voor woningcorporaties. Je verwerkt een automatisch gegenereerd transcript tot een kennisbankitem in het Nederlands. ${owner}
 
-PRIVACY (strikt, gaat boven volledigheid):
-- Neem geen gevoelige klantgegevens op: niets over huurders, bewoners, eindgebruikers of individuele medewerkers van klanten (namen, adressen, contactgegevens, geboortedata, BSN, IBAN, inkomen, gezondheid, klachten of incidenten over personen).
-- Noem een persoon in teksten alleen bij naam als die op de personenlijst staat; beschrijf anderen met hun rol ("de projectleider van de corporatie").
-- Geen bedragen, tarieven of contractvoorwaarden die bij een specifieke klant horen; beschrijf ze algemeen ("prijsafspraak besproken").
-- Over wie dan ook, ook collega's: geen gezondheid, privé- of gezinsomstandigheden, salarisbedragen of beoordelingsscores. Leg bij 1-op-1's en ontwikkelgesprekken alleen werkafspraken, doelen, feedbackthema's en acties vast.
-- Geen wachtwoorden, sleutels, interne URL's of details van beveiligingslekken.
+${PRIVACY_RULES}
 
 INHOUD:
 - Alleen wat in het transcript staat; verzin of vul niets aan.

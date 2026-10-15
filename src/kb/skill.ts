@@ -43,6 +43,7 @@ function render(target: 'claude' | 'copilot', marker: boolean): string {
     .replaceAll('{{KB_DIR}}', kbConfig.dir)
     .replaceAll('{{KB_FOLDER}}', path.basename(kbConfig.dir))
     .replaceAll('{{ONEDRIVE_PATH}}', oneDrivePath())
+    .replaceAll('{{PROJECT_DIR}}', path.resolve(SOURCE, '..', '..'))
     // The owner is the user; naming them lets the skill leave them out of searches and address them as "you".
     .replaceAll('{{EIGENAAR}}', loadVocabulary().owner?.naam ?? 'the owner of the Kennisbank');
   if (!marker) text = text.split('\n').filter(l => !l.includes(GENERATED_MARKER)).join('\n');

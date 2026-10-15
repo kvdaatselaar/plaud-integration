@@ -30,6 +30,7 @@
     "kb:aliassen": "tsx scripts/kb-aliassen.ts",
     "kb:enrich": "tsx scripts/kb-enrich.ts",
     "kb:index": "tsx scripts/kb-index.ts",
+    "kb:vraag": "tsx scripts/kb-vraag.ts",
     "kb:check": "tsx scripts/kb-check.ts",
     "kb:zoek": "tsx scripts/kb-zoek.ts",
     "kb:skill": "tsx scripts/kb-skill.ts",
