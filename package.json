@@ -23,8 +23,10 @@
     "transcripts:dump": "tsx scripts/dump-transcripts.ts",
     "audio:download": "tsx scripts/download-audio.ts",
     "plaud:debug": "tsx scripts/plaud-debug.ts",
+    "plaud:speakers": "tsx scripts/plaud-speakers.ts",
     "teams:debug": "tsx scripts/teams-debug.ts",
     "teams:repair": "tsx scripts/teams-repair.ts",
+    "teams:reconvert": "tsx scripts/teams-reconvert.ts",
     "kb:analyze": "tsx scripts/kb-analyze.ts",
     "kb:beheer": "tsx scripts/kb-beheer.ts",
     "kb:aliassen": "tsx scripts/kb-aliassen.ts",
@@ -36,7 +38,8 @@
     "kb:skill": "tsx scripts/kb-skill.ts",
     "kb": "npm run --silent kb:beheer; npm run --silent kb:enrich; npm run --silent kb:index",
     "kb:later": "zsh scripts/kb-later.sh",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test 'test/**/*.test.ts'"
   },
   "dependencies": {
     "@azure/msal-node": "^2.16.2",

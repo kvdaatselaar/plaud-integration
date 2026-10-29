@@ -73,6 +73,15 @@ Dit gebruikt dezelfde aanroepen als de knop "Generate" in de Plaud-webapp (`/ai/
 `PATCH /file/{id}` om het resultaat te bewaren); die zijn niet officieel gedocumenteerd en kunnen veranderen.
 Sprekers krijgen geen namen uit je stemprofielen, zoals de app soms wel doet; ze blijven "Speaker 1", "Speaker 2".
 
+### Sprekernamen achteraf
+
+Geef je sprekers later een naam in de Plaud-app (tags of stemprofielen), dan haalt de dagelijkse sync dat op.
+Transcripten in het archief waar nog "Speaker N" in staat worden opnieuw opgehaald, hooguit
+`PLAUD_SPEAKER_RECHECK_MAX` per run (standaard 15; 0 = uit). Wat het langst niet gecontroleerd is gaat voor,
+daarbinnen de nieuwste. Het bestand wordt alleen overschreven als het nieuwe transcript minder "Speaker N"-labels
+heeft, op hetzelfde pad, met dezelfde frontmatter. De OneNote-pagina blijft zoals hij was.
+Los draaien: `npm run plaud:speakers` (droge run, alleen aantallen) of `npm run plaud:speakers -- --apply`.
+
 ## Teams-meetings
 
 Naast Plaud pakt de sync ook je Microsoft Teams-meeting-transcripts van de
@@ -113,6 +122,17 @@ npm run teams:repair -- --apply   # verwijdert dubbelen, maakt verkeerd gedateer
 
 Pagina's waarvan Microsoft de transcript niet meer heeft, blijven ongemoeid (dan is jouw pagina de
 enige kopie). Let op: eigen aantekeningen op verwijderde/opnieuw aangemaakte pagina's gaan verloren.
+
+**Sprekerwissels in vergaderzalen** — een Teams Room-account (bv. "1.10 Vergaderzaal") spreekt voor iedereen
+in die zaal. Oudere versies voegden al zijn zinnen samen, waardoor een hele meeting één blok kon worden. Nu
+blijft elke cue van een zaal (of zonder spreker) een eigen regel, en wordt een beurt van één persoon na twee
+minuten afgebroken. Bestaande transcripten in het archief opnieuw omzetten vanuit Microsoft (zelfde pad en
+frontmatter; wat Microsoft niet meer heeft blijft zoals het is):
+
+```bash
+npm run teams:reconvert              # dry run: alleen aantallen
+npm run teams:reconvert -- --apply   # transcript-secties overschrijven
+```
 
 ## Lokale transcript-dump
 
@@ -645,6 +665,8 @@ uninstall.sh                   # launchd unload + state cleanup
 | `npm run audio:download` | MP3-export naar AUDIO_DIR (skip-if-exists) |
 | `npm run teams:debug` | Teams-transcripts in de laatste 30 dagen + meetings zonder toegang |
 | `npm run teams:repair` | Dubbele/verkeerd gedateerde Teams-pagina's opschonen (dry run; `-- --apply`) |
+| `npm run teams:reconvert` | Teams-transcripten in het archief opnieuw omzetten vanuit Graph (dry run; `-- --apply`) |
+| `npm run plaud:speakers` | Archieftranscripten met "Speaker N" opnieuw ophalen bij Plaud (dry run; `-- --apply`) |
 | `npm run kb:analyze` | Analyse vooraf: thema's en types voorstellen voor de vaste lijst |
 | `npm run kb:beheer` | Vaste lijst automatisch onderhouden (personen, organisaties, soort, varianten, onderwerpen) |
 | `npm run kb:aliassen` | Rapport van schrijfvarianten van namen in de transcripten |

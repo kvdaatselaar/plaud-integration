@@ -32,6 +32,10 @@ export const config = {
     minSeconds: Number(process.env.PLAUD_MIN_TRANSCRIBE_SECONDS ?? 60),
     waitMinutes: Number(process.env.PLAUD_TRANSCRIBE_WAIT_MINUTES ?? 15),
   },
+  speakerRecheck: {
+    // Archived Plaud transcripts still labelled "Speaker N" are fetched again (names tagged later in the app).
+    maxPerRun: Number(process.env.PLAUD_SPEAKER_RECHECK_MAX ?? 15),
+  },
   paths: {
     dir: path.join(os.homedir(), '.plaud-integration'),
     state: path.join(os.homedir(), '.plaud-integration', 'state.json'),

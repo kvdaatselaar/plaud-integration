@@ -39,7 +39,8 @@ export function parseVtt(vtt: string): VttCue[] {
     if (!rawText) continue;
 
     // Speaker markup variants Teams/Graph emits:
-    //   <v Speaker Name>text</v>
+    //   <v Speaker Name>text</v>    (what Graph's text/vtt uses; also "<v Name | Organisation>"
+    //                                and Teams Rooms as "<v 1.10 Room name>")
     //   <v.Speaker Speaker Name>text
     //   Speaker Name: text
     let speaker: string | undefined;
@@ -72,8 +73,20 @@ function formatTs(ms: number): string {
 }
 
 /**
- * Merge consecutive cues from the same speaker (Teams emits many short cues)
+ * A Teams Room account, named after the room ("1.10 Vergaderzaal"): it speaks for everyone in
+ * that room, so consecutive cues are not one person's turn.
+ */
+export function isRoomSpeaker(speaker: string | undefined): boolean {
+  return !!speaker && /^\d+(?:\.\d+)+\s/.test(speaker);
+}
+
+/** A merged turn never grows past this, so one microphone can't make the meeting one block. */
+const MAX_TURN_MS = 2 * 60_000;
+
+/**
+ * Merge consecutive cues from the same person (Teams emits many short cues)
  * and format as "[hh:mm:ss] Speaker: text" lines matching the Plaud output.
+ * Cues without a speaker or from a meeting room stay separate lines.
  */
 export function vttToTranscript(vtt: string): string {
   const cues = parseVtt(vtt);
@@ -82,7 +95,8 @@ export function vttToTranscript(vtt: string): string {
   const groups: Group[] = [];
   for (const c of cues) {
     const last = groups[groups.length - 1];
-    if (last && last.speaker === c.speaker) {
+    const mergeable = !!c.speaker && !isRoomSpeaker(c.speaker);
+    if (last && mergeable && last.speaker === c.speaker && c.startMs - last.startMs < MAX_TURN_MS) {
       last.texts.push(c.text);
     } else {
       groups.push({ startMs: c.startMs, speaker: c.speaker, texts: [c.text] });
