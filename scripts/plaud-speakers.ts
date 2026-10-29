@@ -19,6 +19,7 @@ async function main(): Promise<void> {
     dir: config.transcripts.dir,
     fetchTranscript: async id => (await plaud.getRecording(id)).transcript ?? '',
     lastChecked: state.speakerChecks(),
+    editedAt: Object.fromEntries((await plaud.listRecordings()).filter(r => r.edit_time).map(r => [r.id, r.edit_time! * 1000])),
     max,
     dryRun: !APPLY,
   });

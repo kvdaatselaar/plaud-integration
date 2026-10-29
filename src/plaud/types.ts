@@ -34,6 +34,8 @@ export interface PlaudRecording {
   is_summary: boolean;
   keywords: string[];
   serial_number: string;
+  /** Last edit in Plaud (seconds), e.g. speakers renamed. */
+  edit_time?: number;
 }
 
 export interface PlaudRecordingDetail extends PlaudRecording {

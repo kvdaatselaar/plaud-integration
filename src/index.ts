@@ -135,6 +135,7 @@ async function main(): Promise<void> {
         dir: config.transcripts.dir,
         fetchTranscript: async id => (await plaud.getRecording(id)).transcript ?? '',
         lastChecked: state.speakerChecks(),
+        editedAt: Object.fromEntries(recordings.filter(r => r.edit_time).map(r => [r.id, r.edit_time! * 1000])),
         max: config.speakerRecheck.maxPerRun,
       });
       state.markSpeakersChecked(r.checkedIds, Date.now());

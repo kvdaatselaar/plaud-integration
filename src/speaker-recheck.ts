@@ -34,16 +34,21 @@ export function findGenericPlaudTranscripts(dir: string): ArchivedPlaud[] {
 }
 
 /**
- * Least recently checked first, so every recording gets its turn; among those never checked
- * (or checked at the same time), the newest first.
+ * Recordings edited in Plaud since their last check, most recently edited first; unchanged ones
+ * are skipped. Without an edit time: least recently checked first, then the newest.
  */
 export function pickRechecks(
   found: ArchivedPlaud[],
   lastChecked: Record<string, number>,
   max: number,
+  editedAt: Record<string, number> = {},
 ): ArchivedPlaud[] {
-  return [...found]
-    .sort((a, b) => (lastChecked[a.plaudId] ?? 0) - (lastChecked[b.plaudId] ?? 0) || b.when.localeCompare(a.when))
+  const checked = (a: ArchivedPlaud) => lastChecked[a.plaudId] ?? 0;
+  const edited = (a: ArchivedPlaud) => editedAt[a.plaudId];
+  return found
+    .filter(a => edited(a) === undefined || !(a.plaudId in lastChecked) || edited(a) > checked(a))
+    .sort((a, b) =>
+      (edited(b) ?? -1) - (edited(a) ?? -1) || checked(a) - checked(b) || b.when.localeCompare(a.when))
     .slice(0, Math.max(0, max));
 }
 
@@ -61,12 +66,14 @@ export async function recheckSpeakers(opts: {
   dir: string;
   fetchTranscript: (plaudId: string) => Promise<string>;
   lastChecked: Record<string, number>;
+  /** Last edit in Plaud per recording (ms), from the recording list. */
+  editedAt?: Record<string, number>;
   max: number;
   dryRun?: boolean;
 }): Promise<RecheckResult> {
   const found = findGenericPlaudTranscripts(opts.dir);
   const result: RecheckResult = { candidates: found.length, checked: 0, improved: 0, failed: 0, checkedIds: [] };
-  for (const item of pickRechecks(found, opts.lastChecked, opts.max)) {
+  for (const item of pickRechecks(found, opts.lastChecked, opts.max, opts.editedAt)) {
     try {
       const transcript = await opts.fetchTranscript(item.plaudId);
       result.checked++;

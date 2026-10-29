@@ -80,6 +80,15 @@ test('pickRechecks: never checked first, newest first, at most max', () => {
   assert.deepEqual(pickRechecks(found, {}, 0), []);
 });
 
+test('pickRechecks: only recordings edited since their last check, most recently edited first', () => {
+  const f = (plaudId: string, when: string) => ({ path: '', plaudId, when, generic: 1 });
+  const found = [f('same', '2026-03-01 09:00'), f('edited', '2026-01-01 09:00'), f('new', '2026-02-01 09:00'), f('gone', '2026-04-01 09:00')];
+  const lastChecked = { same: 100, edited: 100, gone: 100 };
+  const editedAt = { same: 50, edited: 300, new: 200 };
+  assert.deepEqual(pickRechecks(found, lastChecked, 10, editedAt).map(x => x.plaudId), ['edited', 'new', 'gone']);
+  assert.deepEqual(pickRechecks(found, lastChecked, 1, editedAt).map(x => x.plaudId), ['edited']);
+});
+
 test('recheckSpeakers overwrites only when the new transcript has fewer generic labels', async () => {
   const dir = archive({
     'Week 1/named.md': plaudMd('named', '2026-01-04', GENERIC),
