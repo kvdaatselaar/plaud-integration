@@ -32,6 +32,13 @@ export const config = {
     minSeconds: Number(process.env.PLAUD_MIN_TRANSCRIBE_SECONDS ?? 60),
     waitMinutes: Number(process.env.PLAUD_TRANSCRIBE_WAIT_MINUTES ?? 15),
   },
+  // Addresses in these domains count as colleagues (participants, colleague profiles).
+  internalDomains: (process.env.INTERNAL_DOMAINS ?? 'zig.nl').split(',').map(d => d.trim().toLowerCase()).filter(Boolean),
+  // Files for the personal brain, next to the transcript archive.
+  get colleaguesFile(): string {
+    return path.join(this.breinDir, 'collegas.json');
+  },
+  breinDir: process.env.BREIN_DIR ?? path.join(path.dirname(process.env.TRANSCRIPTS_DIR ?? path.join(os.homedir(), 'Documents', 'PlaudTranscripts')), '_brein'),
   speakerRecheck: {
     // Archived Plaud transcripts still labelled "Speaker N" are fetched again (names tagged later in the app).
     maxPerRun: Number(process.env.PLAUD_SPEAKER_RECHECK_MAX ?? 15),
@@ -47,6 +54,9 @@ export const config = {
     // Teams-specific scopes require admin consent; requested separately so the
     // Plaud sync doesn't crash when consent isn't in place yet.
     teamsScopes: ['OnlineMeetings.Read', 'OnlineMeetingTranscript.Read.All'],
+    // Colleague profiles (job title, department, manager): admin consent. Not in allScopes, so
+    // graph:login keeps working before consent; request it with `npm run graph:login -- --collegas`.
+    directoryScopes: ['User.Read.All'],
     // Superset used by graph-login to request everything in one flow.
     allScopes: [
       'Notes.ReadWrite',

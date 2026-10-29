@@ -4,6 +4,7 @@ import { buildTeamsPageHtml } from './html.js';
 import { writeTeamsTranscript } from './transcripts.js';
 import { ensureWeek, refreshOverview } from './weeks.js';
 import { isoWeekInfo } from './week.js';
+import { participantsFromEvent, type Participant } from './participants.js';
 import {
   GraphError,
   threadIdFromMeetingId,
@@ -30,6 +31,16 @@ export interface TeamsWorkItem {
   startMs: number;
   endMs: number;
   eventId?: string;
+  /** From the calendar occurrence; absent when none matched. */
+  participants?: Participant[];
+}
+
+/** Participants of a calendar occurrence, as stored in the transcript frontmatter. */
+export function occurrenceParticipants(occ: TeamsMeetingCandidate): Participant[] {
+  return participantsFromEvent({
+    organizer: { emailAddress: { address: occ.organizerEmail, name: occ.organizerName } },
+    attendees: occ.attendees,
+  });
 }
 
 export interface TeamsNoAccess {
@@ -100,6 +111,7 @@ export async function toWorkItem(
     startMs: occ?.startMs ?? createdMs,
     endMs: occ?.endMs ?? endMs,
     eventId: occ?.eventId,
+    participants: occ ? occurrenceParticipants(occ) : undefined,
   };
 }
 
@@ -227,7 +239,7 @@ export async function addTeamsTranscript(
     transcriptId: item.transcriptId,
     startMs: item.startMs,
     endMs: item.endMs,
-  }, transcript);
+  }, transcript, item.participants);
 
   state.markTeamsSynced(item.transcriptId, item.key);
   return { title, mdPath };

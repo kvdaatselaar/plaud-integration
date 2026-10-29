@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { config } from './config.js';
 import type { PlaudRecording, PlaudRecordingDetail } from './plaud/index.js';
+import { participantsYaml, type Participant } from './participants.js';
 
 /**
  * Sanitize a string for filesystem use. Strips path separators and reserved
@@ -19,6 +20,7 @@ export function buildTranscriptMarkdown(
   rec: PlaudRecording,
   detail: PlaudRecordingDetail,
   title: string,
+  participants?: Participant[],
 ): string {
   const date = new Date(rec.start_time);
   const dateStr = date.toISOString().slice(0, 10);
@@ -34,6 +36,7 @@ export function buildTranscriptMarkdown(
   parts.push(`duration_min: ${durationMin}`);
   parts.push(`plaud_id: ${rec.id}`);
   parts.push('source: plaud');
+  parts.push(...participantsYaml(participants));
   parts.push('---');
   parts.push('');
   parts.push(`# ${title}`);
@@ -65,13 +68,14 @@ export function writeTranscript(
   title: string,
   rec: PlaudRecording,
   detail: PlaudRecordingDetail,
+  participants?: Participant[],
 ): string | null {
   if (!config.transcripts.enabled) return null;
   const weekDir = path.join(config.transcripts.dir, sanitize(weekLabel));
   fs.mkdirSync(weekDir, { recursive: true });
   const fileBase = sanitize(title);
   const filePath = path.join(weekDir, `${fileBase}.md`);
-  fs.writeFileSync(filePath, buildTranscriptMarkdown(rec, detail, title));
+  fs.writeFileSync(filePath, buildTranscriptMarkdown(rec, detail, title, participants));
   return filePath;
 }
 
@@ -86,6 +90,7 @@ export function buildTeamsTranscriptMarkdown(
   meta: TeamsMeta,
   title: string,
   transcript: string,
+  participants?: Participant[],
 ): string {
   const date = new Date(meta.startMs);
   const dateStr = date.toISOString().slice(0, 10);
@@ -101,6 +106,7 @@ export function buildTeamsTranscriptMarkdown(
   parts.push(`online_meeting_id: ${meta.onlineMeetingId}`);
   parts.push(`transcript_id: ${meta.transcriptId}`);
   parts.push('source: teams');
+  parts.push(...participantsYaml(participants));
   parts.push('---');
   parts.push('');
   parts.push(`# ${title}`);
@@ -148,10 +154,11 @@ export function writeTeamsTranscript(
   title: string,
   meta: TeamsMeta,
   transcript: string,
+  participants?: Participant[],
 ): string | null {
   if (!config.transcripts.enabled) return null;
   const filePath = teamsTranscriptPath(weekLabel, title, meta.transcriptId);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, buildTeamsTranscriptMarkdown(meta, title, transcript));
+  fs.writeFileSync(filePath, buildTeamsTranscriptMarkdown(meta, title, transcript, participants));
   return filePath;
 }

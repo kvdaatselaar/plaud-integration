@@ -208,7 +208,7 @@ async function main(): Promise<void> {
         transcriptId: p.rec.transcriptId,
         startMs: p.rec.startTime,
         endMs: p.rec.startTime + p.rec.durationMs,
-      }, transcript);
+      }, transcript, p.item.participants);
       restored++;
     } catch (err) {
       log(`✗ markdown ${p.rec.title}: ${(err as Error).message}`);
