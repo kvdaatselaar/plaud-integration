@@ -1,3 +1,5 @@
+import type { CalendarEvent } from './calendar.js';
+
 const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
 
 export class GraphError extends Error {
@@ -15,6 +17,8 @@ export interface TeamsMeetingCandidate {
   endMs: number;
   isOrganizer: boolean;
   organizerEmail?: string;
+  organizerName?: string;
+  attendees?: CalendarEvent['attendees'];
 }
 
 export interface OnlineMeeting {
@@ -97,7 +101,7 @@ export class Teams {
     const qs = new URLSearchParams({
       startDateTime: new Date(sinceMs).toISOString(),
       endDateTime: new Date(untilMs).toISOString(),
-      $select: 'id,subject,start,end,isOnlineMeeting,onlineMeeting,organizer,isOrganizer,isCancelled',
+      $select: 'id,subject,start,end,isOnlineMeeting,onlineMeeting,organizer,isOrganizer,isCancelled,attendees',
       $top: '250',
     });
     const events = await this.getAllPages<any>(`${GRAPH_BASE}/me/calendarView?${qs}`);
@@ -114,6 +118,8 @@ export class Teams {
         endMs: parseGraphDate(e.end.dateTime),
         isOrganizer: e.isOrganizer === true,
         organizerEmail: e.organizer?.emailAddress?.address,
+        organizerName: e.organizer?.emailAddress?.name,
+        attendees: e.attendees,
       });
     }
     return out;

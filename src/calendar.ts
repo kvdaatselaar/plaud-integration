@@ -8,6 +8,8 @@ export interface CalendarEvent {
   isAllDay: boolean;
   isCancelled?: boolean;
   responseStatus?: { response?: string };
+  isOnlineMeeting?: boolean;
+  onlineMeeting?: { joinUrl?: string } | null;
   organizer?: { emailAddress?: { address?: string; name?: string } };
   attendees?: Array<{
     emailAddress?: { address?: string; name?: string };
@@ -49,6 +51,28 @@ export class Calendar {
     }
     const data: any = await res.json();
     return data.value ?? [];
+  }
+
+  /** Every event in the range, all pages, including the Teams join URL. */
+  async getAllEventsInRange(startIso: string, endIso: string): Promise<CalendarEvent[]> {
+    const qs = new URLSearchParams({
+      startDateTime: startIso,
+      endDateTime: endIso,
+      $select: 'id,subject,start,end,isAllDay,isCancelled,responseStatus,organizer,attendees,isOnlineMeeting,onlineMeeting',
+      $top: '250',
+    });
+    const out: CalendarEvent[] = [];
+    let next: string | undefined = `${GRAPH_BASE}/me/calendarView?${qs}`;
+    while (next) {
+      const res: Response = await fetch(next, {
+        headers: { Authorization: `Bearer ${this.token}`, Accept: 'application/json', Prefer: 'outlook.timezone="UTC"' },
+      });
+      if (!res.ok) throw new Error(`Calendar ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
+      const data: any = await res.json();
+      out.push(...(data.value ?? []));
+      next = data['@odata.nextLink'];
+    }
+    return out;
   }
 }
 

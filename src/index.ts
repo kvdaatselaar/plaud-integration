@@ -10,6 +10,7 @@ import { writeTranscript } from './transcripts.js';
 import { requestTranscriptions } from './plaud-transcribe.js';
 import { ensureAudio } from './audio-archive.js';
 import { recheckSpeakers } from './speaker-recheck.js';
+import { participantsFromEvent } from './participants.js';
 import { Teams, GraphError } from './teams.js';
 import { collectTeamsTranscripts, addTeamsTranscript } from './teams-sync.js';
 import { ensureNotebook, ensureWeek, refreshOverview } from './weeks.js';
@@ -108,7 +109,7 @@ async function main(): Promise<void> {
 
       state.markSynced(rec.id);
 
-      const transcriptPath = writeTranscript(week.label, title, rec, detail);
+      const transcriptPath = writeTranscript(week.label, title, rec, detail, matched ? participantsFromEvent(matched) : undefined);
       if (transcriptPath) log(`   📄 ${transcriptPath}`);
 
       try {

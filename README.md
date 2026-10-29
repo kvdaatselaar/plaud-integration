@@ -157,6 +157,27 @@ Bestaande (al-gesynchroniseerde) opnames in één keer naar disk schrijven:
 npm run transcripts:dump
 ```
 
+### Deelnemers in de frontmatter
+
+Hoort een transcript bij een agenda-afspraak (Plaud: op tijd gematcht, Teams: via de meeting), dan staan de
+organisator en de genodigden in de frontmatter. Vergaderzalen en andere resources tellen niet mee; zonder
+afspraak ontbreekt het veld.
+
+```yaml
+deelnemers:
+  - naam: "Anna Test"          # weergavenaam uit de uitnodiging (of het adres als die ontbreekt)
+    email: "anna@example.nl"   # altijd kleine letters; organisator eerst
+```
+
+Bestaande transcripten aanvullen (alleen de frontmatter verandert, pad en tekst blijven gelijk):
+
+```bash
+npm run transcripts:deelnemers              # dry run: alleen aantallen
+npm run transcripts:deelnemers -- --apply
+```
+
+Welke adressen intern zijn bepaalt `INTERNAL_DOMAINS` (standaard `zig.nl`, komma-gescheiden).
+
 ## Audio-download
 
 Audio wordt standaard tijdens `npm run sync` opgehaald naar
