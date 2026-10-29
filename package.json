@@ -22,6 +22,7 @@
     "onenote:retitle": "tsx scripts/retitle.ts",
     "transcripts:dump": "tsx scripts/dump-transcripts.ts",
     "transcripts:deelnemers": "tsx scripts/participants-backfill.ts",
+    "collegas": "tsx scripts/colleagues.ts",
     "audio:download": "tsx scripts/download-audio.ts",
     "plaud:debug": "tsx scripts/plaud-debug.ts",
     "plaud:speakers": "tsx scripts/plaud-speakers.ts",

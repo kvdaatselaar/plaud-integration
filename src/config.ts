@@ -35,6 +35,9 @@ export const config = {
   // Addresses in these domains count as colleagues (participants, colleague profiles).
   internalDomains: (process.env.INTERNAL_DOMAINS ?? 'zig.nl').split(',').map(d => d.trim().toLowerCase()).filter(Boolean),
   // Files for the personal brain, next to the transcript archive.
+  get colleaguesFile(): string {
+    return path.join(this.breinDir, 'collegas.json');
+  },
   breinDir: process.env.BREIN_DIR ?? path.join(path.dirname(process.env.TRANSCRIPTS_DIR ?? path.join(os.homedir(), 'Documents', 'PlaudTranscripts')), '_brein'),
   speakerRecheck: {
     // Archived Plaud transcripts still labelled "Speaker N" are fetched again (names tagged later in the app).

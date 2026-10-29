@@ -4,7 +4,8 @@ import { config } from '../src/config.js';
 async function main(): Promise<void> {
   const app = createGraphApp();
   const result = await app.acquireTokenByDeviceCode({
-    scopes: config.graph.allScopes,
+    // --collegas: also User.Read.All (colleague profiles), once an admin has consented to it.
+    scopes: process.argv.includes('--collegas') ? [...config.graph.allScopes, ...config.graph.directoryScopes] : config.graph.allScopes,
     deviceCodeCallback: (response) => {
       console.log('');
       console.log('==============================================');

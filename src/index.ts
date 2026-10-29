@@ -11,6 +11,7 @@ import { requestTranscriptions } from './plaud-transcribe.js';
 import { ensureAudio } from './audio-archive.js';
 import { recheckSpeakers } from './speaker-recheck.js';
 import { participantsFromEvent } from './participants.js';
+import { collectColleagues, graphGet, internalParticipantEmails, refreshDue, writeColleaguesFile } from './colleagues.js';
 import { Teams, GraphError } from './teams.js';
 import { collectTeamsTranscripts, addTeamsTranscript } from './teams-sync.js';
 import { ensureNotebook, ensureWeek, refreshOverview } from './weeks.js';
@@ -146,6 +147,8 @@ async function main(): Promise<void> {
     }
   }
 
+  await refreshColleagues();
+
   // ── Teams meetings phase ─────────────────────────────────────────────
   let teamsOk = 0;
   let teamsSkipped = 0;
@@ -216,6 +219,25 @@ async function main(): Promise<void> {
   log(`Teams done. Synced ${teamsOk}, skipped ${teamsSkipped}, no access ${noAccess.length}, failed ${teamsFailed}`);
 
   if (failed > 0 || teamsFailed > 0) process.exit(1);
+}
+
+/** collegas.json for the brain, once a week; needs admin consent for User.Read.All. */
+async function refreshColleagues(): Promise<void> {
+  if (!refreshDue(state.colleaguesRefreshedAt(), Date.now())) return;
+  const token = await tryGetAccessTokenSilent([...config.graph.scopes, ...config.graph.directoryScopes]);
+  if (!token) {
+    log('Collega\'s: overgeslagen — User.Read.All niet consented. Vraag admin-consent aan en run:');
+    log('       npm run graph:login -- --collegas');
+    return;
+  }
+  try {
+    const r = await collectColleagues(graphGet(token), internalParticipantEmails(config.transcripts.dir, config.internalDomains));
+    writeColleaguesFile(config.colleaguesFile, r.file);
+    state.markColleaguesRefreshed(Date.now());
+    log(`Collega's: ${r.addresses} interne adressen, ${r.found} profielen (${r.withManager} met manager), ${r.notFound} niet gevonden`);
+  } catch (err) {
+    log(`Collega's: mislukt — ${(err as Error).message}`);
+  }
 }
 
 main().catch(err => {

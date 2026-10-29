@@ -178,6 +178,42 @@ npm run transcripts:deelnemers -- --apply
 
 Welke adressen intern zijn bepaalt `INTERNAL_DOMAINS` (standaard `zig.nl`, komma-gescheiden).
 
+### Collega-profielen (`collegas.json`)
+
+Voor elke interne deelnemer (adres in `INTERNAL_DOMAINS`) haalt de sync eens per week het profiel op uit
+Microsoft Graph en schrijft `<map boven TRANSCRIPTS_DIR>/_brein/collegas.json` (`BREIN_DIR` om te verplaatsen):
+
+```json
+{
+  "bijgewerkt": "2026-11-02T06:00:00.000Z",
+  "collegas": {
+    "anna@example.nl": {
+      "email": "anna@example.nl",
+      "displayName": "Anna Test",
+      "jobTitle": "Developer",
+      "department": "Product",
+      "officeLocation": "Kantoor A",
+      "manager": { "naam": "De Baas", "email": "baas@example.nl" }
+    }
+  }
+}
+```
+
+De sleutel is het adres zoals het in `deelnemers` staat (kleine letters). Velden die niet in Entra staan zijn
+`null`, net als `manager` als er geen is. Adressen die geen gebruiker zijn (vertrokken, of een groep) ontbreken.
+
+**Admin-consent nodig:** de manager is alleen leesbaar met `User.Read.All` (`User.ReadBasic.All` en `People.Read`
+geven geen manager, `User.ReadBasic.All` ook geen functie of afdeling). Zolang een beheerder die toestemming niet
+heeft gegeven, slaat de sync deze stap over met een melding in de log. Na consent:
+
+```bash
+npm run graph:login -- --collegas   # vraagt ook User.Read.All aan
+npm run collegas                    # dry run: alleen aantallen
+npm run collegas -- --apply         # nu schrijven (anders bij de volgende wekelijkse ververs-run)
+```
+
+De adressen komen uit de `deelnemers` in het archief; vul die eerst aan met `npm run transcripts:deelnemers`.
+
 ## Audio-download
 
 Audio wordt standaard tijdens `npm run sync` opgehaald naar

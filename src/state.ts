@@ -47,6 +47,8 @@ interface StateFile {
   transcribeAttempts?: Record<string, number>;
   /** Plaud recordings fetched again for speaker names: when last checked (ms). */
   speakerChecks?: Record<string, number>;
+  /** Last time collegas.json was written (ms). */
+  colleaguesRefreshedAt?: number;
 }
 
 function ensureDir(): void {
@@ -64,6 +66,7 @@ function load(): StateFile {
       onenote: parsed.onenote,
       transcribeAttempts: parsed.transcribeAttempts ?? {},
       speakerChecks: parsed.speakerChecks ?? {},
+      colleaguesRefreshedAt: parsed.colleaguesRefreshedAt,
     };
   } catch {
     return { syncedIds: [], syncedTeamsTranscriptIds: [], syncedTeamsKeys: [] };
@@ -100,6 +103,14 @@ export const state = {
   markSpeakersChecked(ids: string[], at: number): void {
     const s = load();
     s.speakerChecks = { ...(s.speakerChecks ?? {}), ...Object.fromEntries(ids.map(id => [id, at])) };
+    save(s);
+  },
+  colleaguesRefreshedAt(): number | undefined {
+    return load().colleaguesRefreshedAt;
+  },
+  markColleaguesRefreshed(at: number): void {
+    const s = load();
+    s.colleaguesRefreshedAt = at;
     save(s);
   },
   getOnenote(): OneNoteState {
