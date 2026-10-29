@@ -9,6 +9,7 @@ import { buildPageHtml } from './html.js';
 import { writeTranscript } from './transcripts.js';
 import { requestTranscriptions } from './plaud-transcribe.js';
 import { ensureAudio } from './audio-archive.js';
+import { recheckSpeakers } from './speaker-recheck.js';
 import { Teams, GraphError } from './teams.js';
 import { collectTeamsTranscripts, addTeamsTranscript } from './teams-sync.js';
 import { ensureNotebook, ensureWeek, refreshOverview } from './weeks.js';
@@ -126,6 +127,22 @@ async function main(): Promise<void> {
   }
 
   log(`Plaud done. Synced ${ok}, skipped ${skipped}, failed ${failed}, total recordings ${recordings.length}`);
+
+  // Speaker names tagged in the Plaud app after a recording was archived.
+  if (config.transcripts.enabled && config.speakerRecheck.maxPerRun > 0) {
+    try {
+      const r = await recheckSpeakers({
+        dir: config.transcripts.dir,
+        fetchTranscript: async id => (await plaud.getRecording(id)).transcript ?? '',
+        lastChecked: state.speakerChecks(),
+        max: config.speakerRecheck.maxPerRun,
+      });
+      state.markSpeakersChecked(r.checkedIds, Date.now());
+      log(`Plaud sprekers: ${r.candidates} transcript(s) met Speaker N, ${r.checked} opnieuw opgehaald, ${r.improved} verbeterd, ${r.failed} mislukt`);
+    } catch (err) {
+      log(`Plaud sprekers: overgeslagen — ${(err as Error).message}`);
+    }
+  }
 
   // ── Teams meetings phase ─────────────────────────────────────────────
   let teamsOk = 0;

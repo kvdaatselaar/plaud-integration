@@ -73,6 +73,15 @@ Dit gebruikt dezelfde aanroepen als de knop "Generate" in de Plaud-webapp (`/ai/
 `PATCH /file/{id}` om het resultaat te bewaren); die zijn niet officieel gedocumenteerd en kunnen veranderen.
 Sprekers krijgen geen namen uit je stemprofielen, zoals de app soms wel doet; ze blijven "Speaker 1", "Speaker 2".
 
+### Sprekernamen achteraf
+
+Geef je sprekers later een naam in de Plaud-app (tags of stemprofielen), dan haalt de dagelijkse sync dat op.
+Transcripten in het archief waar nog "Speaker N" in staat worden opnieuw opgehaald, hooguit
+`PLAUD_SPEAKER_RECHECK_MAX` per run (standaard 15; 0 = uit). Wat het langst niet gecontroleerd is gaat voor,
+daarbinnen de nieuwste. Het bestand wordt alleen overschreven als het nieuwe transcript minder "Speaker N"-labels
+heeft, op hetzelfde pad, met dezelfde frontmatter. De OneNote-pagina blijft zoals hij was.
+Los draaien: `npm run plaud:speakers` (droge run, alleen aantallen) of `npm run plaud:speakers -- --apply`.
+
 ## Teams-meetings
 
 Naast Plaud pakt de sync ook je Microsoft Teams-meeting-transcripts van de
