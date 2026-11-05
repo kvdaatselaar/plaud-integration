@@ -15,6 +15,10 @@ export interface CalendarEvent {
     emailAddress?: { address?: string; name?: string };
     type?: 'required' | 'optional' | 'resource';
   }>;
+  // Only in getAllEventsInRange (the agenda export)
+  location?: { displayName?: string } | null;
+  type?: 'singleInstance' | 'occurrence' | 'exception' | 'seriesMaster';
+  showAs?: 'free' | 'tentative' | 'busy' | 'oof' | 'workingElsewhere' | 'unknown';
 }
 
 function hasOtherAttendees(e: CalendarEvent): boolean {
@@ -53,12 +57,12 @@ export class Calendar {
     return data.value ?? [];
   }
 
-  /** Every event in the range, all pages, including the Teams join URL. */
+  /** Every event in the range, all pages, including the Teams join URL, location, type and showAs. */
   async getAllEventsInRange(startIso: string, endIso: string): Promise<CalendarEvent[]> {
     const qs = new URLSearchParams({
       startDateTime: startIso,
       endDateTime: endIso,
-      $select: 'id,subject,start,end,isAllDay,isCancelled,responseStatus,organizer,attendees,isOnlineMeeting,onlineMeeting',
+      $select: 'id,subject,start,end,isAllDay,isCancelled,responseStatus,organizer,attendees,isOnlineMeeting,onlineMeeting,location,type,showAs',
       $top: '250',
     });
     const out: CalendarEvent[] = [];

@@ -12,6 +12,7 @@ import { ensureAudio } from './audio-archive.js';
 import { recheckSpeakers } from './speaker-recheck.js';
 import { participantsFromEvent } from './participants.js';
 import { collectColleagues, graphGet, internalParticipantEmails, refreshDue, writeColleaguesFile } from './colleagues.js';
+import { collectAgenda, describeAgenda, writeAgendaFile } from './agenda.js';
 import { Teams, GraphError } from './teams.js';
 import { collectTeamsTranscripts, addTeamsTranscript } from './teams-sync.js';
 import { ensureNotebook, ensureWeek, refreshOverview } from './weeks.js';
@@ -38,6 +39,9 @@ async function main(): Promise<void> {
   const graphToken = await getAccessTokenSilent();
   const onenote = new OneNote(graphToken);
   const calendar = new Calendar(graphToken);
+
+  // Before the Plaud phase: a Plaud outage must not cost the brain its morning preparation.
+  await exportAgenda(calendar, graphToken);
 
   const notebookId = await ensureNotebook(onenote, log);
 
@@ -219,6 +223,17 @@ async function main(): Promise<void> {
   log(`Teams done. Synced ${teamsOk}, skipped ${teamsSkipped}, no access ${noAccess.length}, failed ${teamsFailed}`);
 
   if (failed > 0 || teamsFailed > 0) process.exit(1);
+}
+
+/** agenda.json for the brain: today's and tomorrow's appointments, every run. A failure here never stops the sync. */
+async function exportAgenda(calendar: Calendar, token: string): Promise<void> {
+  try {
+    const r = await collectAgenda(calendar, graphGet(token));
+    writeAgendaFile(config.agendaFile, r.file);
+    log(`Agenda: ${describeAgenda(r.file, r.counts)} → ${config.agendaFile}`);
+  } catch (err) {
+    log(`Agenda: mislukt — ${(err as Error).message}`);
+  }
 }
 
 /** collegas.json for the brain, once a week; needs admin consent for User.Read.All. */
