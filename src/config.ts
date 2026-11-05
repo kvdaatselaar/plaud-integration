@@ -38,6 +38,9 @@ export const config = {
   get colleaguesFile(): string {
     return path.join(this.breinDir, 'collegas.json');
   },
+  get agendaFile(): string {
+    return path.join(this.breinDir, 'agenda.json');
+  },
   breinDir: process.env.BREIN_DIR ?? path.join(path.dirname(process.env.TRANSCRIPTS_DIR ?? path.join(os.homedir(), 'Documents', 'PlaudTranscripts')), '_brein'),
   speakerRecheck: {
     // Archived Plaud transcripts still labelled "Speaker N" are fetched again (names tagged later in the app).

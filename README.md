@@ -13,6 +13,8 @@ macOS only (launchd). Personal/work Microsoft account.
 - Microsoft Graph → OneNote pagina's, weekly overview-pagina via PATCH
 - Microsoft Graph → Outlook agenda voor titel-matching (alleen meetings met
   ≥1 andere attendee tellen mee — geen solo-blockouts)
+- Microsoft Graph → afspraken van vandaag en morgen als `_brein/agenda.json`
+  voor het brein (de dagelijkse voorbereiding)
 - launchd → dagelijkse cron om 07:00
 - State in `~/.plaud-integration/`
 
@@ -213,6 +215,53 @@ npm run collegas -- --apply         # nu schrijven (anders bij de volgende wekel
 ```
 
 De adressen komen uit de `deelnemers` in het archief; vul die eerst aan met `npm run transcripts:deelnemers`.
+
+### Agenda voor het brein (`agenda.json`)
+
+Elke sync schrijft, nog vóór de Plaud-fase, de afspraken van vandaag en morgen uit de Outlook-agenda naar
+`<map boven TRANSCRIPTS_DIR>/_brein/agenda.json`, naast `collegas.json`. Het brein maakt daar 's ochtends per
+afspraak een korte voorbereiding van; de agenda zelf bewaart het niet.
+
+```json
+{
+  "bijgewerkt": "2026-11-04T06:00:12.000Z",
+  "eigenaar": "anna@example.nl",
+  "van": "2026-11-04",
+  "tot": "2026-11-05",
+  "afspraken": [
+    {
+      "id": "AAMkAGI2…",
+      "datum": "2026-11-04",
+      "begin": "2026-11-04T09:00:00+01:00",
+      "eind": "2026-11-04T09:30:00+01:00",
+      "titel": "Stuurgroep Zonnebloem",
+      "organisator": { "naam": "Anna Test", "email": "anna@example.nl" },
+      "genodigden": [
+        { "naam": "Bob Voorbeeld", "email": "bob@klant.example.com", "optioneel": true }
+      ],
+      "online": true,
+      "locatie": null,
+      "reeks": true,
+      "hele_dag": false
+    }
+  ]
+}
+```
+
+Tijden staan in lokale tijd (`Europe/Amsterdam`) met offset; `datum` is de lokale dag van het begin. `genodigden`
+zijn de uitgenodigden zonder vergaderruimtes, zonder jezelf en zonder de organisator (die staat apart); `naam` is
+de weergavenaam of, als die ontbreekt, het adres. `reeks` is een terugkerende afspraak, `locatie` de ruimte of
+plaats uit de uitnodiging. Geannuleerde en afgewezen afspraken en afspraken met status "vrij" (blokkades) staan er
+niet in; afspraken zonder andere genodigden en hele-dag-afspraken (`hele_dag`) wel. Het bestand wordt eerst als
+`agenda.json.tmp` geschreven en dan hernoemd, zodat het brein nooit een half bestand leest. Een fout in deze stap
+stopt de sync niet: de log meldt `Agenda: mislukt — …` en de rest gaat door.
+
+Los draaien:
+
+```bash
+npm run agenda              # dry run: alleen aantallen
+npm run agenda -- --apply   # nu schrijven
+```
 
 ## Audio-download
 
@@ -720,6 +769,9 @@ uninstall.sh                   # launchd unload + state cleanup
 | `npm run onenote:retitle` | Bestaande page-titels bijwerken obv Outlook-agenda |
 | `npm run transcripts:dump` | Backfill: markdown-files voor al gesynchroniseerde opnames |
 | `npm run audio:download` | MP3-export naar AUDIO_DIR (skip-if-exists) |
+| `npm run transcripts:deelnemers` | Deelnemers uit de agenda in de frontmatter van bestaande transcripten (dry run; `-- --apply`) |
+| `npm run collegas` | Collega-profielen uit Graph naar `_brein/collegas.json` (dry run; `-- --apply`) |
+| `npm run agenda` | Afspraken van vandaag en morgen naar `_brein/agenda.json` voor het brein (dry run; `-- --apply`) |
 | `npm run teams:debug` | Teams-transcripts in de laatste 30 dagen + meetings zonder toegang |
 | `npm run teams:repair` | Dubbele/verkeerd gedateerde Teams-pagina's opschonen (dry run; `-- --apply`) |
 | `npm run teams:reconvert` | Teams-transcripten in het archief opnieuw omzetten vanuit Graph (dry run; `-- --apply`) |
