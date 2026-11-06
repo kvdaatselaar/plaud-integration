@@ -51,6 +51,35 @@ export function threadIdFromMeetingId(meetingId: string): string | undefined {
   }
 }
 
+export interface MeetingRef {
+  threadId: string;
+  organizerOid: string;
+}
+
+/**
+ * Thread and organizer from any Teams link that carries both: a recap link
+ * ("…/l/meetingrecap?…organizerId=…&threadId=…", also wrapped in a launcher URL)
+ * or a join link ("…/l/meetup-join/19%3ameeting_…/0?context={"Tid":…,"Oid":…}").
+ */
+export function meetingRefFromLink(link: string): MeetingRef | undefined {
+  let s = link;
+  for (let i = 0; i < 3; i++) {
+    try {
+      const d = decodeURIComponent(s);
+      if (d === s) break;
+      s = d;
+    } catch { break; }
+  }
+  const threadId = s.match(/19:meeting_[^@/&"]+@thread\.v2/)?.[0];
+  const organizerOid = s.match(/organizerId=([0-9a-f-]{36})/i)?.[1] ?? s.match(/"Oid"\s*:\s*"([0-9a-f-]{36})"/i)?.[1];
+  return threadId && organizerOid ? { threadId, organizerOid } : undefined;
+}
+
+/** The onlineMeeting id Graph uses for a meeting, built the way Teams itself encodes it. */
+export function meetingIdFromRef(ref: MeetingRef): string {
+  return Buffer.from(`1*${ref.organizerOid}*0**${ref.threadId}`).toString('base64');
+}
+
 function parseGraphDate(dt: string): number {
   return Date.parse(dt.endsWith('Z') ? dt : `${dt}Z`);
 }

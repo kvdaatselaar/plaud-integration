@@ -30,6 +30,7 @@
     "teams:debug": "tsx scripts/teams-debug.ts",
     "teams:repair": "tsx scripts/teams-repair.ts",
     "teams:reconvert": "tsx scripts/teams-reconvert.ts",
+    "teams:import": "tsx scripts/teams-import.ts",
     "kb:analyze": "tsx scripts/kb-analyze.ts",
     "kb:beheer": "tsx scripts/kb-beheer.ts",
     "kb:aliassen": "tsx scripts/kb-aliassen.ts",

@@ -125,6 +125,15 @@ npm run teams:repair -- --apply   # verwijdert dubbelen, maakt verkeerd gedateer
 Pagina's waarvan Microsoft de transcript niet meer heeft, blijven ongemoeid (dan is jouw pagina de
 enige kopie). Let op: eigen aantekeningen op verwijderde/opnieuw aangemaakte pagina's gaan verloren.
 
+**Een meeting die de sync niet ziet** — een recap die iemand met je deelt van een meeting die niet in je
+agenda staat (of ouder is dan het sync-venster) kun je los importeren met de recap-link of join-link.
+Het werkt alleen als Graph je als deelnemer ziet en de organisator in je eigen tenant zit:
+
+```bash
+npm run teams:import -- "<recap- of join-link>"            # dry run: wat er gevonden wordt
+npm run teams:import -- "<recap- of join-link>" --apply    # OneNote-pagina + archief, zelfde als de sync
+```
+
 **Sprekerwissels in vergaderzalen** — een Teams Room-account (bv. "1.10 Vergaderzaal") spreekt voor iedereen
 in die zaal. Oudere versies voegden al zijn zinnen samen, waardoor een hele meeting één blok kon worden. Nu
 blijft elke cue van een zaal (of zonder spreker) een eigen regel, en wordt een beurt van één persoon na twee
@@ -774,6 +783,7 @@ uninstall.sh                   # launchd unload + state cleanup
 | `npm run agenda` | Afspraken van vandaag en morgen naar `_brein/agenda.json` voor het brein (dry run; `-- --apply`) |
 | `npm run teams:debug` | Teams-transcripts in de laatste 30 dagen + meetings zonder toegang |
 | `npm run teams:repair` | Dubbele/verkeerd gedateerde Teams-pagina's opschonen (dry run; `-- --apply`) |
+| `npm run teams:import` | Eén Teams-meeting importeren via recap- of join-link, bv. niet in je agenda (dry run; `-- --apply`) |
 | `npm run teams:reconvert` | Teams-transcripten in het archief opnieuw omzetten vanuit Graph (dry run; `-- --apply`) |
 | `npm run plaud:speakers` | Archieftranscripten met "Speaker N" opnieuw ophalen bij Plaud (dry run; `-- --apply`) |
 | `npm run kb:analyze` | Analyse vooraf: thema's en types voorstellen voor de vaste lijst |
